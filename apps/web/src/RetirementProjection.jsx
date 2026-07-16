@@ -411,9 +411,9 @@ function GrowthChart({ series, ages, valueKey, formatY }) {
           </text>
         ))}
 
-        {/* area under the first (primary) series */}
-        {series.length > 0 && series[0].area && (
-          <path d={buildArea(series[0].points)} fill={series[0].color} opacity="0.08" />
+        {/* soft area fill under any series flagged for it (e.g. Total) */}
+        {series.map((s) =>
+          s.area ? <path key={`${s.label}-area`} d={buildArea(s.points)} fill={s.color} opacity="0.08" /> : null,
         )}
 
         {/* series lines */}
@@ -469,25 +469,81 @@ function GrowthChart({ series, ages, valueKey, formatY }) {
   );
 }
 
-function Legend({ items }) {
+// The toggleable chart series. Balances are solid lines; the "your money vs.
+// the market's money" series (Contributions / Gains) are dashed.
+const SERIES_DEFS = [
+  { key: "total", label: "Total Balance", color: "var(--accent)", dashed: false, area: true, get: (y) => y.totalBalance },
+  { key: "k401", label: "401(k)", color: "var(--blue)", dashed: false, area: false, get: (y) => y.k401Balance },
+  { key: "roth", label: "Roth IRA", color: "var(--teal)", dashed: false, area: false, get: (y) => y.rothBalance },
+  { key: "contributions", label: "Contributions", color: "var(--purple)", dashed: true, area: false, get: (y) => y.cumulativeContributions },
+  { key: "gains", label: "Investment Gains", color: "var(--orange)", dashed: true, area: false, get: (y) => y.cumulativeGains },
+];
+
+// A small line sample (solid or dashed) used inside toggles and chips.
+function LineSample({ color, dashed }) {
   return (
-    <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-      {items.map((l) => (
-        <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span
-            style={{
-              width: 14,
-              height: 3,
-              borderRadius: 2,
-              background: l.color,
-              display: "inline-block",
-              ...(l.dashed ? { backgroundImage: "none", opacity: 0.9 } : {}),
-            }}
-          />
-          <span style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: mono }}>{l.label}</span>
-        </div>
-      ))}
-    </div>
+    <svg width="20" height="6" style={{ flexShrink: 0 }}>
+      <line x1="0" y1="3" x2="20" y2="3" stroke={color} strokeWidth="2.5" strokeDasharray={dashed ? "4 3" : "none"} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// Square checkbox toggle to show/hide a series.
+function SeriesToggle({ label, color, dashed, checked, onChange }) {
+  return (
+    <button
+      onClick={onChange}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 7,
+        padding: "6px 10px",
+        background: checked ? "var(--input-bg)" : "transparent",
+        border: "1px solid var(--border)",
+        borderRadius: 8,
+        cursor: "pointer",
+        opacity: checked ? 1 : 0.5,
+        transition: "opacity 0.15s",
+        fontFamily: mono,
+      }}
+    >
+      <span
+        style={{
+          width: 14,
+          height: 14,
+          borderRadius: 4,
+          border: `1.5px solid ${color}`,
+          background: checked ? color : "transparent",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        {checked && <span style={{ color: "#0d0f11", fontSize: 10, fontWeight: 900, lineHeight: 1 }}>✓</span>}
+      </span>
+      <LineSample color={color} dashed={dashed} />
+      <span style={{ fontSize: 11, color: "var(--text)" }}>{label}</span>
+    </button>
+  );
+}
+
+function ComparisonChip({ label }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 7,
+        padding: "6px 10px",
+        border: "1px dashed var(--border)",
+        borderRadius: 8,
+        fontFamily: mono,
+      }}
+    >
+      <LineSample color="var(--red)" dashed />
+      <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{label}</span>
+    </span>
   );
 }
 
@@ -502,7 +558,15 @@ export default function RetirementProjection({ base, k401, roth }) {
   const set = (field, value) => setA((prev) => ({ ...prev, [field]: value }));
 
   const [view, setView] = useState("nominal"); // nominal | real
-  const [breakdown, setBreakdown] = useState("total"); // total | stacked
+  // Which series are drawn. Defaults show the "your money vs. market" story.
+  const [visible, setVisible] = useState({
+    total: true,
+    k401: false,
+    roth: false,
+    contributions: true,
+    gains: true,
+  });
+  const toggleSeries = (key) => setVisible((v) => ({ ...v, [key]: !v[key] }));
 
   // plans (saved retirement scenarios) + comparison
   const [plans, setPlans] = useState([]);
@@ -569,24 +633,25 @@ export default function RetirementProjection({ base, k401, roth }) {
   const ages = years.map((y) => y.age);
   const formatY = (v) => fmtCompact(v);
 
-  // Build the chart series. In "real" mode we deflate each account's nominal
-  // balance by the same factor as the total (realTotal / total).
+  // Build the chart series from the toggled-on definitions. In "real" mode we
+  // deflate each nominal value by the same factor as the total (realTotal/total).
   const displaySeries = useMemo(() => {
     const deflate = (y, v) => (view === "real" && y.totalBalance > 0 ? v * (y.realTotalBalance / y.totalBalance) : v);
-    if (breakdown === "total") {
-      return [{ label: "Total", color: "var(--accent)", area: true, points: years.map((y) => ({ age: y.age, val: view === "real" ? y.realTotalBalance : y.totalBalance })) }];
-    }
-    return [
-      { label: "401(k)", color: "var(--blue)", points: years.map((y) => ({ age: y.age, val: deflate(y, y.k401Balance) })) },
-      { label: "Roth IRA", color: "var(--teal)", points: years.map((y) => ({ age: y.age, val: deflate(y, y.rothBalance) })) },
-    ];
-  }, [years, breakdown, view]);
+    return SERIES_DEFS.filter((d) => visible[d.key]).map((d) => ({
+      key: d.key,
+      label: d.label,
+      color: d.color,
+      dashed: d.dashed,
+      area: d.area,
+      points: years.map((y) => ({ age: y.age, val: deflate(y, d.get(y)) })),
+    }));
+  }, [years, visible, view]);
 
   const chartSeries = displaySeries.map((s) => ({ ...s }));
   if (compareProjection) {
     chartSeries.push({
       label: comparePlan.title || "Comparison",
-      color: "var(--orange)",
+      color: "var(--red)",
       dashed: true,
       points: compareProjection.years.map((y) => ({ age: y.age, val: view === "real" ? y.realTotalBalance : y.totalBalance })),
     });
@@ -616,35 +681,31 @@ export default function RetirementProjection({ base, k401, roth }) {
       <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
           <SectionLabel>Growth to Retirement</SectionLabel>
-          <div style={{ display: "flex", gap: 8 }}>
-            <PillGroup
-              value={view}
-              onChange={setView}
-              options={[
-                { value: "nominal", label: "Nominal" },
-                { value: "real", label: "Today's $" },
-              ]}
-            />
-            <PillGroup
-              value={breakdown}
-              onChange={setBreakdown}
-              options={[
-                { value: "total", label: "Total" },
-                { value: "stacked", label: "401k / Roth" },
-              ]}
-            />
-          </div>
+          <PillGroup
+            value={view}
+            onChange={setView}
+            options={[
+              { value: "nominal", label: "Nominal" },
+              { value: "real", label: "Today's $" },
+            ]}
+          />
         </div>
 
         <GrowthChart series={chartSeries} ages={ages} valueKey="val" formatY={formatY} />
 
-        <div style={{ marginTop: 10 }}>
-          <Legend
-            items={[
-              ...displaySeries.map((s) => ({ label: s.label, color: s.color })),
-              ...(compareProjection ? [{ label: comparePlan.title || "Comparison", color: "var(--orange)", dashed: true }] : []),
-            ]}
-          />
+        {/* series toggles double as the legend */}
+        <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {SERIES_DEFS.map((d) => (
+            <SeriesToggle
+              key={d.key}
+              label={d.label}
+              color={d.color}
+              dashed={d.dashed}
+              checked={!!visible[d.key]}
+              onChange={() => toggleSeries(d.key)}
+            />
+          ))}
+          {compareProjection && <ComparisonChip label={comparePlan.title || "Comparison"} />}
         </div>
       </Card>
 
