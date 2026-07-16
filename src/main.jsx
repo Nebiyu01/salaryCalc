@@ -11,28 +11,70 @@ const FEDERAL_BRACKETS = [
   { min: 626350, max: Infinity, rate: 0.37 },
 ];
 
-// 2025 California tax brackets (Single filer)
-const CA_BRACKETS = [
-  { min: 0, max: 11079, rate: 0.01 },
-  { min: 11079, max: 26264, rate: 0.02 },
-  { min: 26264, max: 41449, rate: 0.04 },
-  { min: 41449, max: 57509, rate: 0.06 },
-  { min: 57509, max: 72689, rate: 0.08 },
-  { min: 72689, max: 372984, rate: 0.093 },
-  { min: 372984, max: 447573, rate: 0.103 },
-  { min: 447573, max: 698274, rate: 0.113 },
-  { min: 698274, max: 1000000, rate: 0.123 },
-  { min: 1000000, max: Infinity, rate: 0.133 },
-];
+// 2025 State income tax data (Single filer, approximate)
+// sdiRate: state disability/paid-leave employee contribution rate
+// sdiCap: wage cap for SDI (default Infinity)
+// sdiLabel: label for SDI line item
+const STATE_TAX_DATA = {
+  AL: { name: "Alabama",        brackets: [{min:0,max:500,rate:.02},{min:500,max:3000,rate:.04},{min:3000,max:Infinity,rate:.05}], stdDeduction: 2500,  sdiRate: 0 },
+  AK: { name: "Alaska",         brackets: [], stdDeduction: 0,     sdiRate: 0 },
+  AZ: { name: "Arizona",        brackets: [{min:0,max:Infinity,rate:.025}], stdDeduction: 14600, sdiRate: 0 },
+  AR: { name: "Arkansas",       brackets: [{min:0,max:4300,rate:.02},{min:4300,max:8500,rate:.04},{min:8500,max:Infinity,rate:.047}], stdDeduction: 2200, sdiRate: 0 },
+  CA: { name: "California",     brackets: [{min:0,max:11079,rate:.01},{min:11079,max:26264,rate:.02},{min:26264,max:41449,rate:.04},{min:41449,max:57509,rate:.06},{min:57509,max:72689,rate:.08},{min:72689,max:372984,rate:.093},{min:372984,max:447573,rate:.103},{min:447573,max:698274,rate:.113},{min:698274,max:1000000,rate:.123},{min:1000000,max:Infinity,rate:.133}], stdDeduction: 5706,  sdiRate: 0.012, sdiCap: Infinity, sdiLabel: "CA SDI" },
+  CO: { name: "Colorado",       brackets: [{min:0,max:Infinity,rate:.044}], stdDeduction: 14600, sdiRate: 0 },
+  CT: { name: "Connecticut",    brackets: [{min:0,max:10000,rate:.03},{min:10000,max:50000,rate:.05},{min:50000,max:100000,rate:.055},{min:100000,max:200000,rate:.06},{min:200000,max:250000,rate:.065},{min:250000,max:500000,rate:.069},{min:500000,max:Infinity,rate:.0699}], stdDeduction: 15000, sdiRate: 0 },
+  DC: { name: "Washington DC",  brackets: [{min:0,max:10000,rate:.04},{min:10000,max:40000,rate:.06},{min:40000,max:60000,rate:.065},{min:60000,max:350000,rate:.085},{min:350000,max:1000000,rate:.0925},{min:1000000,max:Infinity,rate:.1075}], stdDeduction: 12950, sdiRate: 0 },
+  DE: { name: "Delaware",       brackets: [{min:0,max:2000,rate:0},{min:2000,max:5000,rate:.022},{min:5000,max:10000,rate:.039},{min:10000,max:20000,rate:.048},{min:20000,max:25000,rate:.052},{min:25000,max:60000,rate:.0555},{min:60000,max:Infinity,rate:.066}], stdDeduction: 3250, sdiRate: 0 },
+  FL: { name: "Florida",        brackets: [], stdDeduction: 0,     sdiRate: 0 },
+  GA: { name: "Georgia",        brackets: [{min:0,max:Infinity,rate:.0549}], stdDeduction: 5400,  sdiRate: 0 },
+  HI: { name: "Hawaii",         brackets: [{min:0,max:2400,rate:.014},{min:2400,max:4800,rate:.032},{min:4800,max:9600,rate:.055},{min:9600,max:14400,rate:.064},{min:14400,max:19200,rate:.068},{min:19200,max:24000,rate:.072},{min:24000,max:48000,rate:.076},{min:48000,max:150000,rate:.079},{min:150000,max:175000,rate:.0825},{min:175000,max:200000,rate:.09},{min:200000,max:Infinity,rate:.11}], stdDeduction: 2200, sdiRate: 0.005, sdiCap: 60050, sdiLabel: "HI TDI" },
+  ID: { name: "Idaho",          brackets: [{min:0,max:Infinity,rate:.058}], stdDeduction: 14600, sdiRate: 0 },
+  IL: { name: "Illinois",       brackets: [{min:0,max:Infinity,rate:.0495}], stdDeduction: 2425,  sdiRate: 0 },
+  IN: { name: "Indiana",        brackets: [{min:0,max:Infinity,rate:.0305}], stdDeduction: 1000,  sdiRate: 0 },
+  IA: { name: "Iowa",           brackets: [{min:0,max:6210,rate:.044},{min:6210,max:31050,rate:.048},{min:31050,max:Infinity,rate:.057}], stdDeduction: 2210, sdiRate: 0 },
+  KS: { name: "Kansas",         brackets: [{min:0,max:15000,rate:.031},{min:15000,max:30000,rate:.0525},{min:30000,max:Infinity,rate:.057}], stdDeduction: 3500, sdiRate: 0 },
+  KY: { name: "Kentucky",       brackets: [{min:0,max:Infinity,rate:.04}], stdDeduction: 3160,  sdiRate: 0 },
+  LA: { name: "Louisiana",      brackets: [{min:0,max:12500,rate:.0185},{min:12500,max:50000,rate:.035},{min:50000,max:Infinity,rate:.0425}], stdDeduction: 4500, sdiRate: 0 },
+  ME: { name: "Maine",          brackets: [{min:0,max:24500,rate:.058},{min:24500,max:58050,rate:.0675},{min:58050,max:Infinity,rate:.0715}], stdDeduction: 14600, sdiRate: 0 },
+  MD: { name: "Maryland",       brackets: [{min:0,max:1000,rate:.02},{min:1000,max:2000,rate:.03},{min:2000,max:3000,rate:.04},{min:3000,max:100000,rate:.0475},{min:100000,max:125000,rate:.05},{min:125000,max:150000,rate:.0525},{min:150000,max:250000,rate:.055},{min:250000,max:Infinity,rate:.0575}], stdDeduction: 2400, sdiRate: 0 },
+  MA: { name: "Massachusetts",  brackets: [{min:0,max:Infinity,rate:.05}], stdDeduction: 4400,  sdiRate: 0 },
+  MI: { name: "Michigan",       brackets: [{min:0,max:Infinity,rate:.0425}], stdDeduction: 5600,  sdiRate: 0 },
+  MN: { name: "Minnesota",      brackets: [{min:0,max:30070,rate:.0535},{min:30070,max:98760,rate:.068},{min:98760,max:183340,rate:.0785},{min:183340,max:Infinity,rate:.0985}], stdDeduction: 14575, sdiRate: 0 },
+  MS: { name: "Mississippi",    brackets: [{min:0,max:Infinity,rate:.05}], stdDeduction: 2300,  sdiRate: 0 },
+  MO: { name: "Missouri",       brackets: [{min:0,max:1207,rate:.015},{min:1207,max:2414,rate:.02},{min:2414,max:3621,rate:.025},{min:3621,max:4828,rate:.03},{min:4828,max:6035,rate:.035},{min:6035,max:7242,rate:.04},{min:7242,max:8348,rate:.045},{min:8348,max:Infinity,rate:.048}], stdDeduction: 14600, sdiRate: 0 },
+  MT: { name: "Montana",        brackets: [{min:0,max:20500,rate:.047},{min:20500,max:Infinity,rate:.059}], stdDeduction: 14600, sdiRate: 0 },
+  NE: { name: "Nebraska",       brackets: [{min:0,max:3700,rate:.0246},{min:3700,max:22170,rate:.0351},{min:22170,max:35730,rate:.0501},{min:35730,max:Infinity,rate:.0584}], stdDeduction: 7900, sdiRate: 0 },
+  NV: { name: "Nevada",         brackets: [], stdDeduction: 0,     sdiRate: 0 },
+  NH: { name: "New Hampshire",  brackets: [], stdDeduction: 0,     sdiRate: 0 },
+  NJ: { name: "New Jersey",     brackets: [{min:0,max:20000,rate:.014},{min:20000,max:35000,rate:.0175},{min:35000,max:40000,rate:.035},{min:40000,max:75000,rate:.05525},{min:75000,max:500000,rate:.0637},{min:500000,max:1000000,rate:.0897},{min:1000000,max:Infinity,rate:.1075}], stdDeduction: 1000, sdiRate: 0.0026, sdiCap: 161400, sdiLabel: "NJ TDI" },
+  NM: { name: "New Mexico",     brackets: [{min:0,max:5500,rate:.017},{min:5500,max:11000,rate:.032},{min:11000,max:16000,rate:.047},{min:16000,max:210000,rate:.049},{min:210000,max:Infinity,rate:.059}], stdDeduction: 14600, sdiRate: 0 },
+  NY: { name: "New York",       brackets: [{min:0,max:17150,rate:.04},{min:17150,max:23600,rate:.045},{min:23600,max:27900,rate:.0525},{min:27900,max:161550,rate:.0585},{min:161550,max:323200,rate:.0625},{min:323200,max:2155350,rate:.0685},{min:2155350,max:5000000,rate:.0965},{min:5000000,max:25000000,rate:.103},{min:25000000,max:Infinity,rate:.109}], stdDeduction: 8000, sdiRate: 0 },
+  NC: { name: "North Carolina", brackets: [{min:0,max:Infinity,rate:.0475}], stdDeduction: 12750, sdiRate: 0 },
+  ND: { name: "North Dakota",   brackets: [{min:0,max:44725,rate:.0195},{min:44725,max:Infinity,rate:.025}], stdDeduction: 14600, sdiRate: 0 },
+  OH: { name: "Ohio",           brackets: [{min:0,max:26050,rate:0},{min:26050,max:92150,rate:.02765},{min:92150,max:115300,rate:.03226},{min:115300,max:Infinity,rate:.03688}], stdDeduction: 2400, sdiRate: 0 },
+  OK: { name: "Oklahoma",       brackets: [{min:0,max:1000,rate:.0025},{min:1000,max:2500,rate:.0075},{min:2500,max:3750,rate:.0175},{min:3750,max:4900,rate:.0275},{min:4900,max:7200,rate:.0375},{min:7200,max:Infinity,rate:.0475}], stdDeduction: 6350, sdiRate: 0 },
+  OR: { name: "Oregon",         brackets: [{min:0,max:4050,rate:.0475},{min:4050,max:10200,rate:.0675},{min:10200,max:125000,rate:.0875},{min:125000,max:Infinity,rate:.099}], stdDeduction: 2745, sdiRate: 0 },
+  PA: { name: "Pennsylvania",   brackets: [{min:0,max:Infinity,rate:.0307}], stdDeduction: 0,     sdiRate: 0 },
+  RI: { name: "Rhode Island",   brackets: [{min:0,max:77450,rate:.0375},{min:77450,max:176050,rate:.0475},{min:176050,max:Infinity,rate:.0599}], stdDeduction: 10550, sdiRate: 0.011, sdiCap: 84000, sdiLabel: "RI TDI" },
+  SC: { name: "South Carolina", brackets: [{min:0,max:Infinity,rate:.064}], stdDeduction: 14600, sdiRate: 0 },
+  SD: { name: "South Dakota",   brackets: [], stdDeduction: 0,     sdiRate: 0 },
+  TN: { name: "Tennessee",      brackets: [], stdDeduction: 0,     sdiRate: 0 },
+  TX: { name: "Texas",          brackets: [], stdDeduction: 0,     sdiRate: 0 },
+  UT: { name: "Utah",           brackets: [{min:0,max:Infinity,rate:.0455}], stdDeduction: 14600, sdiRate: 0 },
+  VT: { name: "Vermont",        brackets: [{min:0,max:45400,rate:.0335},{min:45400,max:110050,rate:.066},{min:110050,max:229550,rate:.076},{min:229550,max:Infinity,rate:.0875}], stdDeduction: 7000, sdiRate: 0 },
+  VA: { name: "Virginia",       brackets: [{min:0,max:3000,rate:.02},{min:3000,max:5000,rate:.03},{min:5000,max:17000,rate:.05},{min:17000,max:Infinity,rate:.0575}], stdDeduction: 8500, sdiRate: 0 },
+  WA: { name: "Washington",     brackets: [], stdDeduction: 0,     sdiRate: 0 },
+  WV: { name: "West Virginia",  brackets: [{min:0,max:10000,rate:.0236},{min:10000,max:25000,rate:.0315},{min:25000,max:40000,rate:.0354},{min:40000,max:60000,rate:.0472},{min:60000,max:Infinity,rate:.0512}], stdDeduction: 0,     sdiRate: 0 },
+  WI: { name: "Wisconsin",      brackets: [{min:0,max:14320,rate:.035},{min:14320,max:28640,rate:.044},{min:28640,max:315310,rate:.053},{min:315310,max:Infinity,rate:.0765}], stdDeduction: 12760, sdiRate: 0 },
+  WY: { name: "Wyoming",        brackets: [], stdDeduction: 0,     sdiRate: 0 },
+};
 
 const FEDERAL_STD_DEDUCTION = 15000;
-const CA_STD_DEDUCTION = 5706;
 const FICA_SS_RATE = 0.062;
 const FICA_SS_CAP = 176100;
 const FICA_MEDICARE_RATE = 0.0145;
 const FICA_MEDICARE_SURTAX_RATE = 0.009;
 const FICA_MEDICARE_SURTAX_THRESHOLD = 200000;
-const CA_SDI_RATE = 0.012;
 const MAX_401K = 23500;
 const MAX_ROTH = 7000;
 
@@ -193,6 +235,7 @@ function Card({ children, style }) {
 
 export default function SalaryCalculator() {
   const [tab, setTab] = useState("comp");
+  const [stateKey, setStateKey] = useState("CA");
   const [base, setBase] = useState(0);
   const [bonus, setBonus] = useState(0);
   const [signOn, setSignOn] = useState(0);
@@ -210,7 +253,14 @@ export default function SalaryCalculator() {
 
   const setExpense = (key, val) => setExpenses((prev) => ({ ...prev, [key]: val }));
 
+  const stateData = STATE_TAX_DATA[stateKey];
+  const stateName = stateData.name;
+  const hasStateTax = stateData.brackets.length > 0;
+  const hasSdi = stateData.sdiRate > 0;
+  const sdiLabel = stateData.sdiLabel || "State Disability";
+
   const calc = useMemo(() => {
+    const sd = STATE_TAX_DATA[stateKey];
     const annualRsu = rsu / vestingYears;
     const preTax401k = expenses.k401 || 0;
     const totalGross = base + bonus + signOn + annualRsu + relocation;
@@ -219,8 +269,9 @@ export default function SalaryCalculator() {
     const adjustedGross = Math.max(0, totalGross - preTax401k);
     const fedTaxableIncome = Math.max(0, adjustedGross - FEDERAL_STD_DEDUCTION);
     const fedIncomeTax = calcBracketTax(fedTaxableIncome, FEDERAL_BRACKETS);
-    const caTaxableIncome = Math.max(0, adjustedGross - CA_STD_DEDUCTION);
-    const caIncomeTax = calcBracketTax(caTaxableIncome, CA_BRACKETS);
+
+    const stateTaxableIncome = Math.max(0, adjustedGross - sd.stdDeduction);
+    const stateIncomeTax = calcBracketTax(stateTaxableIncome, sd.brackets);
 
     const ssWages = Math.min(totalGross, FICA_SS_CAP);
     const ssTax = ssWages * FICA_SS_RATE;
@@ -228,19 +279,21 @@ export default function SalaryCalculator() {
     const medicareSurtax = totalGross > FICA_MEDICARE_SURTAX_THRESHOLD
       ? (totalGross - FICA_MEDICARE_SURTAX_THRESHOLD) * FICA_MEDICARE_SURTAX_RATE : 0;
     const totalFica = ssTax + medicareTax + medicareSurtax;
-    const caSDI = totalGross * CA_SDI_RATE;
 
-    const totalTax = fedIncomeTax + caIncomeTax + totalFica + caSDI;
+    const sdiWages = Math.min(totalGross, sd.sdiCap ?? Infinity);
+    const sdiTax = sdiWages * sd.sdiRate;
+
+    const totalTax = fedIncomeTax + stateIncomeTax + totalFica + sdiTax;
     const netIncome = totalGross - totalTax - preTax401k;
     const effectiveRate = totalGross > 0 ? totalTax / totalGross : 0;
     const monthlyNet = netIncome / 12;
 
     return {
-      totalGross, annualRsu, fedIncomeTax, caIncomeTax, ssTax,
-      medicareTax: medicareTax + medicareSurtax, caSDI, totalFica,
+      totalGross, annualRsu, fedIncomeTax, stateIncomeTax, ssTax,
+      medicareTax: medicareTax + medicareSurtax, sdiTax, totalFica,
       totalTax, netIncome, effectiveRate, monthlyNet, preTax401k,
     };
-  }, [base, bonus, signOn, rsu, relocation, vestingYears, expenses.k401]);
+  }, [base, bonus, signOn, rsu, relocation, vestingYears, expenses.k401, stateKey]);
 
   const expenseCalc = useMemo(() => {
     const byCategory = {};
@@ -261,6 +314,7 @@ export default function SalaryCalculator() {
   }, [expenses, calc]);
 
   const expenseColors = ["#4ade80", "#60a5fa", "#fb923c", "#f87171", "#a78bfa", "#2dd4bf"];
+  const sortedStates = Object.entries(STATE_TAX_DATA).sort((a, b) => a[1].name.localeCompare(b[1].name));
 
   return (
     <div style={{
@@ -276,10 +330,31 @@ export default function SalaryCalculator() {
       <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
       <div style={{ maxWidth: 960, margin: "0 auto" }}>
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--accent)", fontFamily: mono, marginBottom: 8 }}>Santa Clara County, CA</div>
-          <h1 style={{ fontSize: 32, fontWeight: 800, margin: 0, fontFamily: sans, lineHeight: 1.1 }}>Total Comp Calculator</h1>
-          <p style={{ fontSize: 13, color: "var(--text-dim)", margin: "8px 0 0", fontFamily: mono }}>Federal + CA state + FICA + SDI // 2025 brackets, single filer</p>
+        <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+          <div>
+            <h1 style={{ fontSize: 32, fontWeight: 800, margin: 0, fontFamily: sans, lineHeight: 1.1 }}>Total Comp Calculator</h1>
+            <p style={{ fontSize: 13, color: "var(--text-dim)", margin: "8px 0 0", fontFamily: mono }}>Federal + state + FICA // 2025 brackets, single filer</p>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--text-dim)", fontFamily: mono }}>State</label>
+            <select
+              value={stateKey}
+              onChange={(e) => setStateKey(e.target.value)}
+              style={{
+                background: "var(--input-bg)", border: "1.5px solid var(--border)",
+                borderRadius: 10, color: "var(--text)", fontSize: 13, fontFamily: mono,
+                fontWeight: 600, padding: "10px 36px 10px 14px", cursor: "pointer",
+                outline: "none", appearance: "none", WebkitAppearance: "none",
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237a8494' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")`,
+                backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center",
+                minWidth: 220,
+              }}
+            >
+              {sortedStates.map(([key, st]) => (
+                <option key={key} value={key}>{st.name} ({key})</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -332,17 +407,19 @@ export default function SalaryCalculator() {
                     <div style={{ display: "flex", borderRadius: 8, overflow: "hidden" }}>
                       <BarSegment label="Take-Home" amount={calc.netIncome} total={calc.totalGross} color="#4ade80" />
                       <BarSegment label="Federal" amount={calc.fedIncomeTax} total={calc.totalGross} color="#f87171" />
-                      <BarSegment label="CA State" amount={calc.caIncomeTax} total={calc.totalGross} color="#fb923c" />
+                      {hasStateTax && <BarSegment label={stateKey + " State"} amount={calc.stateIncomeTax} total={calc.totalGross} color="#fb923c" />}
                       <BarSegment label="FICA" amount={calc.totalFica} total={calc.totalGross} color="#60a5fa" />
                       {calc.preTax401k > 0 && <BarSegment label="401(k)" amount={calc.preTax401k} total={calc.totalGross} color="#2dd4bf" />}
-                      <BarSegment label="SDI" amount={calc.caSDI} total={calc.totalGross} color="#a78bfa" />
+                      {hasSdi && <BarSegment label={sdiLabel} amount={calc.sdiTax} total={calc.totalGross} color="#a78bfa" />}
                     </div>
                     <div style={{ display: "flex", gap: 14, marginTop: 10, flexWrap: "wrap" }}>
                       {[
-                        { label: "Take-Home", color: "#4ade80" }, { label: "Federal", color: "#f87171" },
-                        { label: "CA State", color: "#fb923c" }, { label: "FICA", color: "#60a5fa" },
+                        { label: "Take-Home", color: "#4ade80" },
+                        { label: "Federal", color: "#f87171" },
+                        ...(hasStateTax ? [{ label: stateKey + " State", color: "#fb923c" }] : []),
+                        { label: "FICA", color: "#60a5fa" },
                         ...(calc.preTax401k > 0 ? [{ label: "401(k)", color: "#2dd4bf" }] : []),
-                        { label: "SDI", color: "#a78bfa" },
+                        ...(hasSdi ? [{ label: sdiLabel, color: "#a78bfa" }] : []),
                       ].map((l) => (
                         <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
                           <div style={{ width: 8, height: 8, borderRadius: 2, background: l.color }} />
@@ -363,10 +440,10 @@ export default function SalaryCalculator() {
                     <div style={{ height: 14 }} />
                     {calc.preTax401k > 0 && <TaxRow label="401(k) Pre-Tax" amount={calc.preTax401k} pct={calc.preTax401k / calc.totalGross} />}
                     <TaxRow label="Federal Income Tax" amount={calc.fedIncomeTax} pct={calc.fedIncomeTax / calc.totalGross} />
-                    <TaxRow label="CA State Income Tax" amount={calc.caIncomeTax} pct={calc.caIncomeTax / calc.totalGross} />
+                    {hasStateTax && <TaxRow label={stateName + " Income Tax"} amount={calc.stateIncomeTax} pct={calc.stateIncomeTax / calc.totalGross} />}
                     <TaxRow label="Social Security" amount={calc.ssTax} pct={calc.ssTax / calc.totalGross} />
                     <TaxRow label="Medicare" amount={calc.medicareTax} pct={calc.medicareTax / calc.totalGross} />
-                    <TaxRow label="CA SDI" amount={calc.caSDI} pct={calc.caSDI / calc.totalGross} />
+                    {hasSdi && <TaxRow label={sdiLabel} amount={calc.sdiTax} pct={calc.sdiTax / calc.totalGross} />}
                     <div style={{ height: 10 }} />
                     <TaxRow label="Total Deductions" amount={calc.totalTax + calc.preTax401k} pct={(calc.totalTax + calc.preTax401k) / calc.totalGross} bold />
                     <div style={{ height: 4 }} />
@@ -455,9 +532,9 @@ export default function SalaryCalculator() {
                     <div style={{ height: 6 }} />
                     {calc.preTax401k > 0 && <TaxRow label="401(k) Pre-Tax" amount={-calc.preTax401k} />}
                     <TaxRow label="Federal Income Tax" amount={-calc.fedIncomeTax} />
-                    <TaxRow label="CA State Income Tax" amount={-calc.caIncomeTax} />
+                    {hasStateTax && <TaxRow label={stateName + " Income Tax"} amount={-calc.stateIncomeTax} />}
                     <TaxRow label="FICA (SS + Medicare)" amount={-calc.totalFica} />
-                    <TaxRow label="CA SDI" amount={-calc.caSDI} />
+                    {hasSdi && <TaxRow label={sdiLabel} amount={-calc.sdiTax} />}
                     <div style={{ height: 6 }} />
                     <TaxRow label="Net Take-Home" amount={calc.netIncome} bold accent />
                     <div style={{ height: 10 }} />
@@ -544,7 +621,7 @@ export default function SalaryCalculator() {
         )}
 
         <div style={{ marginTop: 24, fontSize: 11, color: "var(--text-dim)", fontFamily: mono, lineHeight: 1.6, textAlign: "center", opacity: 0.6 }}>
-          Estimates only. Uses 2025 federal + CA brackets, single filer, standard deduction. Does not account for HSA, itemized deductions, employer match, or AMT.
+          Estimates only. Uses 2025 federal + {stateName} brackets, single filer, standard deduction. Does not account for HSA, itemized deductions, employer match, AMT, or local income taxes.
         </div>
       </div>
     </div>
