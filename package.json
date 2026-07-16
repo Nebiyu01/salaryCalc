@@ -2,17 +2,17 @@
   "name": "salary-calc",
   "private": true,
   "version": "1.0.0",
-  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "vite build"
-  },
-  "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^6.0.0"
+    "dev:web": "npm run dev --workspace @salary-calc/web",
+    "dev:api": "npm run start:dev --workspace @salary-calc/api",
+    "build": "npm run build --workspaces --if-present",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "npm run prisma:migrate --workspace @salary-calc/api",
+    "db:studio": "npm run prisma:studio --workspace @salary-calc/api"
   }
 }

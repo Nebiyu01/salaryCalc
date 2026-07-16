@@ -1,5 +1,18 @@
 node_modules/
 .dist/
 dist/
+build/
 *.log
 .DS_Store
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Prisma
+apps/api/prisma/*.db
+
+# Editor
+.vscode/
+.idea/

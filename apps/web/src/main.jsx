@@ -1,4 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useAuth } from "./auth";
+import { api } from "./api";
+import AccountBar from "./AccountBar.jsx";
 
 // 2025 Federal tax brackets (Single filer)
 const FEDERAL_BRACKETS = [
@@ -313,6 +316,87 @@ export default function SalaryCalculator() {
     return { byCategory, totalAnnual, totalPostTaxExpenses, netAfterExpenses, monthlyRemaining };
   }, [expenses, calc]);
 
+  // ---- Account: save / load / history (backed by the API) ----
+  const { user, logout } = useAuth();
+  const [history, setHistory] = useState([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
+
+  const loadHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      setHistory(await api.listCalculations());
+    } catch {
+      // leave existing history; the panel shows an empty state
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  const toggleHistory = () => {
+    const next = !historyOpen;
+    setHistoryOpen(next);
+    if (next) loadHistory();
+  };
+
+  const saveCalculation = async () => {
+    setSaving(true);
+    setSaveMsg("");
+    try {
+      const inputs = { base, bonus, signOn, rsu, relocation, vestingYears, stateKey, expenses };
+      const results = calc
+        ? {
+            netIncome: calc.netIncome,
+            monthlyNet: calc.monthlyNet,
+            effectiveRate: calc.effectiveRate,
+            totalGross: calc.totalGross,
+            totalTax: calc.totalTax,
+            annualSavings: expenseCalc.netAfterExpenses,
+          }
+        : {};
+      const title = `${stateData.name} · ${fmt(base)} base`;
+      await api.createCalculation({ calculatorSlug: "salary", title, inputs, results });
+      setSaveMsg("Saved ✓");
+      await loadHistory();
+      setTimeout(() => setSaveMsg(""), 2500);
+    } catch (e) {
+      setSaveMsg(e.message || "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const applyCalculation = (row) => {
+    const i = row.inputs || {};
+    setStateKey(i.stateKey && STATE_TAX_DATA[i.stateKey] ? i.stateKey : "CA");
+    setBase(i.base || 0);
+    setBonus(i.bonus || 0);
+    setSignOn(i.signOn || 0);
+    setRsu(i.rsu || 0);
+    setRelocation(i.relocation || 0);
+    setVestingYears(i.vestingYears || 4);
+    if (i.expenses && typeof i.expenses === "object") {
+      setExpenses((prev) => ({ ...prev, ...i.expenses }));
+    }
+    setHistoryOpen(false);
+    setTab("comp");
+  };
+
+  const deleteCalculation = async (id) => {
+    try {
+      await api.deleteCalculation(id);
+      setHistory((h) => h.filter((r) => r.id !== id));
+    } catch {
+      // ignore; the row stays until the next refresh
+    }
+  };
+
   const expenseColors = ["#4ade80", "#60a5fa", "#fb923c", "#f87171", "#a78bfa", "#2dd4bf"];
   const sortedStates = Object.entries(STATE_TAX_DATA).sort((a, b) => a[1].name.localeCompare(b[1].name));
 
@@ -330,6 +414,19 @@ export default function SalaryCalculator() {
       <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
       <div style={{ maxWidth: 960, margin: "0 auto" }}>
+        <AccountBar
+          email={user?.email}
+          onSave={saveCalculation}
+          saving={saving}
+          saveMsg={saveMsg}
+          onLogout={logout}
+          history={history}
+          historyOpen={historyOpen}
+          onToggleHistory={toggleHistory}
+          loadingHistory={loadingHistory}
+          onLoad={applyCalculation}
+          onDelete={deleteCalculation}
+        />
         <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
           <div>
             <h1 style={{ fontSize: 32, fontWeight: 800, margin: 0, fontFamily: sans, lineHeight: 1.1 }}>Total Comp Calculator</h1>
