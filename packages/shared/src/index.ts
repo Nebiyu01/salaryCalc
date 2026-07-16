@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export * from "./retirement";
+
 /**
  * Shared contracts between the web frontend and the api backend.
  * These Zod schemas are the single source of truth for request/response
