@@ -108,15 +108,21 @@ function SmallBtn({ onClick, children, active, danger }) {
 }
 
 // ---------- main component ----------
-export default function CarPayment({ onSelectPayment }) {
-  const [price, setPrice] = useState(0);
-  const [down, setDown] = useState(0);
-  const [apr, setApr] = useState(6.5);
-  const [term, setTerm] = useState(60);
-
-  // Only push into the budget once the user has actually touched the loan,
-  // so merely opening the tab doesn't clobber a manually-entered car expense.
-  const touched = useRef(false);
+export default function CarPayment({
+  price,
+  setPrice,
+  down,
+  setDown,
+  apr,
+  setApr,
+  term,
+  setTerm,
+  onSelectPayment,
+}) {
+  // Loan inputs are owned by the parent so they survive tab switches. We still
+  // guard the first budget sync so merely opening the tab doesn't overwrite a
+  // manually-entered car expense; a non-zero price counts as already touched.
+  const touched = useRef((price || 0) > 0);
   const touch = (setter) => (v) => {
     touched.current = true;
     setter(v);

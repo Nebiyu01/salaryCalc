@@ -17,7 +17,7 @@ function fmtCompact(n) {
   return "$" + Math.round(n);
 }
 
-const DEFAULTS = {
+export const DEFAULTS = {
   currentAge: 30,
   retirementAge: 65,
   current401kBalance: 0,
@@ -548,14 +548,10 @@ function ComparisonChip({ label }) {
 }
 
 // ---------- main component ----------
-export default function RetirementProjection({ base, k401, roth }) {
-  const [a, setA] = useState(() => ({
-    ...DEFAULTS,
-    salary: base || 0,
-    annual401kContribution: k401 || 0,
-    annualRothContribution: roth || 0,
-  }));
-  const set = (field, value) => setA((prev) => ({ ...prev, [field]: value }));
+export default function RetirementProjection({ assumptions, setAssumptions }) {
+  // Assumptions are owned by the parent so they persist across tab switches.
+  const a = assumptions;
+  const set = (field, value) => setAssumptions((prev) => ({ ...prev, [field]: value }));
 
   const [view, setView] = useState("nominal"); // nominal | real
   // Which series are drawn. Defaults show the "your money vs. market" story.
@@ -617,7 +613,7 @@ export default function RetirementProjection({ base, k401, roth }) {
   };
 
   const loadPlan = (row) => {
-    setA({ ...DEFAULTS, ...row.inputs });
+    setAssumptions({ ...DEFAULTS, ...row.inputs });
   };
   const deletePlan = async (id) => {
     try {
