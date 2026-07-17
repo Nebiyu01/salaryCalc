@@ -248,6 +248,13 @@ export default function SalaryCalculator() {
   const [relocation, setRelocation] = useState(0);
   const [vestingYears, setVestingYears] = useState(4);
 
+  // Car loan inputs live here (not inside the Car Payment tab) so they persist
+  // across tab switches without the user having to save.
+  const [carPrice, setCarPrice] = useState(0);
+  const [carDown, setCarDown] = useState(0);
+  const [carApr, setCarApr] = useState(6.5);
+  const [carTerm, setCarTerm] = useState(60);
+
   const [expenses, setExpenses] = useState(() => {
     const init = {};
     for (const cat of EXPENSE_CATEGORIES) {
@@ -732,7 +739,17 @@ export default function SalaryCalculator() {
 
         {/* ====== CAR PAYMENT TAB ====== */}
         {tab === "car" && (
-          <CarPayment onSelectPayment={(monthly) => setExpense("car_payment", monthly)} />
+          <CarPayment
+            price={carPrice}
+            setPrice={setCarPrice}
+            down={carDown}
+            setDown={setCarDown}
+            apr={carApr}
+            setApr={setCarApr}
+            term={carTerm}
+            setTerm={setCarTerm}
+            onSelectPayment={(monthly) => setExpense("car_payment", monthly)}
+          />
         )}
 
         <div style={{ marginTop: 24, fontSize: 11, color: "var(--text-dim)", fontFamily: mono, lineHeight: 1.6, textAlign: "center", opacity: 0.6 }}>
