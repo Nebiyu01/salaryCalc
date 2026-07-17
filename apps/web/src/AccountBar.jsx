@@ -37,7 +37,9 @@ function fmtMoney(n) {
 
 export default function AccountBar({
   email,
-  onSave,
+  onSaveSession,
+  onSaveToHistory,
+  activeTitle,
   saving,
   saveMsg,
   onLogout,
@@ -92,9 +94,16 @@ export default function AccountBar({
           >
             {email?.[0]?.toUpperCase() ?? "?"}
           </div>
-          <span style={{ fontSize: 12, color: "var(--text-dim)", fontFamily: mono }}>
-            {email}
-          </span>
+          <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.3 }}>
+            <span style={{ fontSize: 12, color: "var(--text-dim)", fontFamily: mono }}>
+              {email}
+            </span>
+            {activeTitle && (
+              <span style={{ fontSize: 10, color: "var(--accent)", fontFamily: mono }}>
+                editing: {activeTitle}
+              </span>
+            )}
+          </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -103,8 +112,11 @@ export default function AccountBar({
               {saveMsg}
             </span>
           )}
-          <BarButton onClick={onSave} disabled={saving} primary>
-            {saving ? "Saving…" : "Save calculation"}
+          <BarButton onClick={onSaveSession} disabled={saving} primary>
+            {saving ? "Saving…" : "Save"}
+          </BarButton>
+          <BarButton onClick={onSaveToHistory} disabled={saving}>
+            Save to history
           </BarButton>
           <BarButton onClick={onToggleHistory}>
             History{history?.length ? ` (${history.length})` : ""}

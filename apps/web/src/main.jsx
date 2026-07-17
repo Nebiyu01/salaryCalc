@@ -355,6 +355,9 @@ export default function SalaryCalculator() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
+  // The saved calculation the current session is tied to. "Save" updates this
+  // in place; "Save to history" always forks a new entry.
+  const [activeCalcId, setActiveCalcId] = useState(null);
 
   const loadHistory = async () => {
     setLoadingHistory(true);
@@ -378,26 +381,60 @@ export default function SalaryCalculator() {
     if (next) loadHistory();
   };
 
-  const saveCalculation = async () => {
+  const buildSnapshot = () => {
+    const inputs = { base, bonus, signOn, rsu, relocation, vestingYears, stateKey, expenses };
+    const results = calc
+      ? {
+          netIncome: calc.netIncome,
+          monthlyNet: calc.monthlyNet,
+          effectiveRate: calc.effectiveRate,
+          totalGross: calc.totalGross,
+          totalTax: calc.totalTax,
+          annualSavings: expenseCalc.netAfterExpenses,
+        }
+      : {};
+    return { inputs, results };
+  };
+
+  const flashSave = (msg) => {
+    setSaveMsg(msg);
+    setTimeout(() => setSaveMsg(""), 2500);
+  };
+
+  // "Save": update the active entry in place; if none, create one and adopt it.
+  const saveSession = async () => {
     setSaving(true);
     setSaveMsg("");
     try {
-      const inputs = { base, bonus, signOn, rsu, relocation, vestingYears, stateKey, expenses };
-      const results = calc
-        ? {
-            netIncome: calc.netIncome,
-            monthlyNet: calc.monthlyNet,
-            effectiveRate: calc.effectiveRate,
-            totalGross: calc.totalGross,
-            totalTax: calc.totalTax,
-            annualSavings: expenseCalc.netAfterExpenses,
-          }
-        : {};
-      const title = `${stateData.name} · ${fmt(base)} base`;
-      await api.createCalculation({ calculatorSlug: "salary", title, inputs, results });
-      setSaveMsg("Saved ✓");
+      const { inputs, results } = buildSnapshot();
+      if (activeCalcId) {
+        await api.updateCalculation(activeCalcId, { inputs, results });
+        flashSave("Session updated ✓");
+      } else {
+        const title = `${stateData.name} · ${fmt(base)} base`;
+        const created = await api.createCalculation({ calculatorSlug: "salary", title, inputs, results });
+        setActiveCalcId(created.id);
+        flashSave("Saved ✓");
+      }
       await loadHistory();
-      setTimeout(() => setSaveMsg(""), 2500);
+    } catch (e) {
+      setSaveMsg(e.message || "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // "Save to history": always create a new entry (a deliberate fork).
+  const saveToHistory = async () => {
+    setSaving(true);
+    setSaveMsg("");
+    try {
+      const { inputs, results } = buildSnapshot();
+      const title = `${stateData.name} · ${fmt(base)} base`;
+      const created = await api.createCalculation({ calculatorSlug: "salary", title, inputs, results });
+      setActiveCalcId(created.id);
+      flashSave("Saved to history ✓");
+      await loadHistory();
     } catch (e) {
       setSaveMsg(e.message || "Save failed");
     } finally {
@@ -417,6 +454,7 @@ export default function SalaryCalculator() {
     if (i.expenses && typeof i.expenses === "object") {
       setExpenses((prev) => ({ ...prev, ...i.expenses }));
     }
+    setActiveCalcId(row.id); // subsequent "Save" updates this entry
     setHistoryOpen(false);
     setTab("comp");
   };
@@ -424,6 +462,7 @@ export default function SalaryCalculator() {
   const deleteCalculation = async (id) => {
     try {
       await api.deleteCalculation(id);
+      if (id === activeCalcId) setActiveCalcId(null);
       setHistory((h) => h.filter((r) => r.id !== id));
     } catch {
       // ignore; the row stays until the next refresh
@@ -458,7 +497,9 @@ export default function SalaryCalculator() {
       <div style={{ maxWidth: 960, margin: "0 auto" }}>
         <AccountBar
           email={user?.email}
-          onSave={saveCalculation}
+          onSaveSession={saveSession}
+          onSaveToHistory={saveToHistory}
+          activeTitle={history.find((h) => h.id === activeCalcId)?.title || null}
           saving={saving}
           saveMsg={saveMsg}
           onLogout={logout}
