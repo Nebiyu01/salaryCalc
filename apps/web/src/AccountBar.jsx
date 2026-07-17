@@ -142,7 +142,7 @@ export default function AccountBar({
           ) : (
             history.map((row) => {
               const net = fmtMoney(row.results?.netIncome);
-              const date = new Date(row.createdAt).toLocaleString();
+              const date = new Date(row.updatedAt || row.createdAt).toLocaleString();
               return (
                 <div
                   key={row.id}

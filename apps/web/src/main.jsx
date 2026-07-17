@@ -363,7 +363,14 @@ export default function SalaryCalculator() {
     setLoadingHistory(true);
     try {
       const all = await api.listCalculations();
-      setHistory(all.filter((c) => c.calculatorSlug === "salary"));
+      const salary = all
+        .filter((c) => c.calculatorSlug === "salary")
+        // Most recently saved first, so a fresh "Save" jumps to the top.
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt),
+        );
+      setHistory(salary);
     } catch {
       // leave existing history; the panel shows an empty state
     } finally {
