@@ -50,7 +50,39 @@ function Card({ children, style }) {
   );
 }
 
-function NumField({ label, value, onChange, prefix, suffix, step = 1, hint }) {
+// `decimal` fields (e.g. APR) accept fractional input like "6.75". They keep a
+// local string so an in-progress "6." isn't reformatted away before you can
+// type the rest. Currency fields keep thousands separators.
+function NumField({ label, value, onChange, prefix, suffix, decimal, hint }) {
+  const fmtVal = (v) => {
+    if (!v || isNaN(v)) return "";
+    return decimal ? String(v) : v.toLocaleString("en-US");
+  };
+  const [raw, setRaw] = useState(() => fmtVal(value));
+  const [focused, setFocused] = useState(false);
+
+  // Reflect external value changes (scenario load, etc.) while not typing.
+  useEffect(() => {
+    if (!focused) setRaw(fmtVal(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, focused, decimal]);
+
+  const handleChange = (e) => {
+    if (decimal) {
+      let s = e.target.value.replace(/[^0-9.]/g, "");
+      const dot = s.indexOf(".");
+      if (dot !== -1) s = s.slice(0, dot + 1) + s.slice(dot + 1).replace(/\./g, "");
+      setRaw(s);
+      const n = s === "" || s === "." ? 0 : parseFloat(s);
+      onChange(isNaN(n) ? 0 : n);
+    } else {
+      const digits = e.target.value.replace(/[^0-9]/g, "");
+      const n = digits === "" ? 0 : parseInt(digits, 10);
+      setRaw(n === 0 ? "" : n.toLocaleString("en-US"));
+      onChange(n);
+    }
+  };
+
   return (
     <div style={{ marginBottom: 12 }}>
       <label style={{ display: "block", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-dim)", marginBottom: 5, fontFamily: mono }}>
@@ -64,16 +96,20 @@ function NumField({ label, value, onChange, prefix, suffix, step = 1, hint }) {
         )}
         <input
           type="text"
-          inputMode="decimal"
-          value={value === 0 ? "" : value.toLocaleString("en-US")}
-          onChange={(e) => {
-            const raw = e.target.value.replace(/[^0-9.]/g, "");
-            onChange(raw === "" ? 0 : parseFloat(raw));
-          }}
+          inputMode={decimal ? "decimal" : "numeric"}
+          value={raw}
+          onChange={handleChange}
           placeholder="0"
           style={{ width: "100%", padding: prefix ? "9px 12px 9px 26px" : "9px 12px", fontSize: 15, fontWeight: 600, fontFamily: mono, background: "var(--input-bg)", border: "1.5px solid var(--border)", borderRadius: 10, color: "var(--text)", outline: "none", boxSizing: "border-box" }}
-          onFocus={(e) => (e.target.style.borderColor = "var(--accent)")}
-          onBlur={(e) => (e.target.style.borderColor = "var(--border)")}
+          onFocus={(e) => {
+            setFocused(true);
+            e.target.style.borderColor = "var(--accent)";
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            setRaw(fmtVal(value));
+            e.target.style.borderColor = "var(--border)";
+          }}
         />
         {suffix && (
           <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)", fontSize: 13, fontFamily: mono, pointerEvents: "none" }}>
@@ -250,7 +286,7 @@ export default function CarPayment({
           <SectionLabel>Loan Details</SectionLabel>
           <NumField label="Vehicle Purchase Price" value={price} onChange={touch(setPrice)} prefix="$" />
           <NumField label="Down Payment" value={down} onChange={touch(setDown)} prefix="$" hint={`Financing ${fmt(results.principal)}`} />
-          <NumField label="Interest Rate (APR)" value={apr} onChange={touch(setApr)} suffix="%" hint="Adjust to see payments update" />
+          <NumField label="Interest Rate (APR)" value={apr} onChange={touch(setApr)} suffix="%" decimal hint="Adjust to see payments update" />
           <div style={{ marginTop: 4 }}>
             <label style={{ display: "block", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-dim)", marginBottom: 6, fontFamily: mono }}>
               Loan Term (your selection)
