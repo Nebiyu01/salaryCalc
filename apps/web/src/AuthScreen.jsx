@@ -15,6 +15,20 @@ const C = {
 const mono = "'DM Mono', monospace";
 const sans = "'DM Sans', system-ui, sans-serif";
 
+// In a SPA the login is a fetch with no navigation, so the browser's heuristic
+// for "a login happened" often misses. The Credential Management API lets us
+// tell the browser explicitly, which reliably triggers the save-password prompt
+// (Chromium). Other browsers fall back to the autocomplete attributes below.
+async function saveBrowserCredential(id, password) {
+  if (typeof window === "undefined" || !("PasswordCredential" in window)) return;
+  try {
+    const cred = new window.PasswordCredential({ id, name: id, password });
+    await navigator.credentials.store(cred);
+  } catch {
+    // Unsupported or user declined — safe to ignore.
+  }
+}
+
 export default function AuthScreen() {
   const { login, register } = useAuth();
   const [mode, setMode] = useState("login"); // "login" | "register"
@@ -30,9 +44,11 @@ export default function AuthScreen() {
     setError("");
     setSubmitting(true);
     try {
-      if (isRegister) await register(email.trim(), password);
-      else await login(email.trim(), password);
-      // On success the AuthProvider sets the user and this screen unmounts.
+      const id = email.trim();
+      if (isRegister) await register(id, password);
+      else await login(id, password);
+      // Offer to save the credential before the AuthProvider unmounts us.
+      await saveBrowserCredential(id, password);
     } catch (err) {
       setError(err.message || "Something went wrong");
     } finally {
@@ -90,14 +106,20 @@ export default function AuthScreen() {
           <Field
             label="Email"
             type="email"
+            name="email"
+            id="email"
             value={email}
             onChange={setEmail}
             placeholder="you@example.com"
-            autoComplete="email"
+            // "username" is the token password managers pair with the password
+            // field; the email address serves as the account username here.
+            autoComplete="username"
           />
           <Field
             label="Password"
             type="password"
+            name="password"
+            id="password"
             value={password}
             onChange={setPassword}
             placeholder={isRegister ? "At least 8 characters" : "••••••••"}
