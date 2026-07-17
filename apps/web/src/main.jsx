@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "./auth";
 import { api } from "./api";
 import AccountBar from "./AccountBar.jsx";
+import RetirementProjection from "./RetirementProjection.jsx";
 
 // 2025 Federal tax brackets (Single filer)
 const FEDERAL_BRACKETS = [
@@ -79,7 +80,7 @@ const FICA_MEDICARE_RATE = 0.0145;
 const FICA_MEDICARE_SURTAX_RATE = 0.009;
 const FICA_MEDICARE_SURTAX_THRESHOLD = 200000;
 const MAX_401K = 23500;
-const MAX_ROTH = 7000;
+const MAX_ROTH = 7500;
 
 function calcBracketTax(income, brackets) {
   let tax = 0;
@@ -108,7 +109,7 @@ const sans = "'DM Sans', system-ui, sans-serif";
 const EXPENSE_CATEGORIES = [
   { key: "retirement", label: "Retirement", icon: "\u{1F4C8}", items: [
     { key: "k401", label: "401(k)", hint: "Annual pre-tax, max $23,500/yr", monthly: false },
-    { key: "roth", label: "Roth IRA", hint: "Annual post-tax, max $7,000/yr", monthly: false },
+    { key: "roth", label: "Roth IRA", hint: "Annual post-tax, max $7,500/yr", monthly: false },
   ]},
   { key: "housing", label: "Housing", icon: "\u{1F3E0}", items: [
     { key: "rent", label: "Rent", hint: "Monthly", monthly: true },
@@ -327,7 +328,8 @@ export default function SalaryCalculator() {
   const loadHistory = async () => {
     setLoadingHistory(true);
     try {
-      setHistory(await api.listCalculations());
+      const all = await api.listCalculations();
+      setHistory(all.filter((c) => c.calculatorSlug === "salary"));
     } catch {
       // leave existing history; the panel shows an empty state
     } finally {
@@ -456,7 +458,7 @@ export default function SalaryCalculator() {
 
         {/* Tabs */}
         <div style={{ display: "flex", gap: 4, marginBottom: 24, background: "var(--surface)", borderRadius: 10, padding: 4, border: "1px solid var(--border)", width: "fit-content" }}>
-          {[{ key: "comp", label: "Compensation" }, { key: "expenses", label: "Expenses" }, { key: "summary", label: "Summary" }].map((t) => (
+          {[{ key: "comp", label: "Compensation" }, { key: "expenses", label: "Expenses" }, { key: "summary", label: "Summary" }, { key: "retirement", label: "Retirement" }].map((t) => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
               padding: "10px 24px", fontSize: 13, fontWeight: 600, fontFamily: mono,
               background: tab === t.key ? "var(--accent)" : "transparent",
@@ -715,6 +717,15 @@ export default function SalaryCalculator() {
               </Card>
             )}
           </div>
+        )}
+
+        {/* ====== RETIREMENT TAB ====== */}
+        {tab === "retirement" && (
+          <RetirementProjection
+            base={base}
+            k401={expenses.k401}
+            roth={expenses.roth}
+          />
         )}
 
         <div style={{ marginTop: 24, fontSize: 11, color: "var(--text-dim)", fontFamily: mono, lineHeight: 1.6, textAlign: "center", opacity: 0.6 }}>
