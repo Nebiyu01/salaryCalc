@@ -430,6 +430,15 @@ export default function SalaryCalculator() {
     }
   };
 
+  const renameCalculation = async (id, title) => {
+    try {
+      await api.updateCalculation(id, { title });
+      setHistory((h) => h.map((r) => (r.id === id ? { ...r, title } : r)));
+    } catch {
+      // ignore; keeps the old title on failure
+    }
+  };
+
   const expenseColors = ["#4ade80", "#60a5fa", "#fb923c", "#f87171", "#a78bfa", "#2dd4bf"];
   const sortedStates = Object.entries(STATE_TAX_DATA).sort((a, b) => a[1].name.localeCompare(b[1].name));
 
@@ -459,6 +468,7 @@ export default function SalaryCalculator() {
           loadingHistory={loadingHistory}
           onLoad={applyCalculation}
           onDelete={deleteCalculation}
+          onRename={renameCalculation}
         />
         <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
           <div>

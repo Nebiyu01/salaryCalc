@@ -2,6 +2,8 @@
 // all data + handlers come from main.jsx, which owns the calculator state.
 // Rendered inside the themed container, so it can use the --* CSS variables.
 
+import { useState } from "react";
+
 const mono = "'DM Mono', monospace";
 
 function BarButton({ onClick, disabled, primary, children }) {
@@ -45,7 +47,18 @@ export default function AccountBar({
   loadingHistory,
   onLoad,
   onDelete,
+  onRename,
 }) {
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState("");
+  const startRename = (row) => {
+    setEditingId(row.id);
+    setDraft(row.title || "");
+  };
+  const commitRename = () => {
+    if (editingId) onRename(editingId, draft.trim() || "Untitled");
+    setEditingId(null);
+  };
   return (
     <div style={{ marginBottom: 24 }}>
       <div
@@ -130,43 +143,76 @@ export default function AccountBar({
                     borderBottom: "1px solid var(--border-light)",
                   }}
                 >
-                  <div style={{ minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        fontFamily: mono,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {row.title || "Untitled"}
-                    </div>
-                    <div style={{ fontSize: 10, color: "var(--text-dim)", fontFamily: mono }}>
-                      {net ? `${net} take-home · ` : ""}
-                      {date}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                    <BarButton onClick={() => onLoad(row)}>Load</BarButton>
-                    <button
-                      onClick={() => onDelete(row.id)}
-                      title="Delete"
-                      style={{
-                        padding: "8px 12px",
-                        fontSize: 12,
-                        fontFamily: mono,
-                        background: "transparent",
-                        color: "var(--red)",
-                        border: "1.5px solid var(--border)",
-                        borderRadius: 8,
-                        cursor: "pointer",
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </div>
+                  {editingId === row.id ? (
+                    <>
+                      <input
+                        autoFocus
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commitRename();
+                          if (e.key === "Escape") setEditingId(null);
+                        }}
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          padding: "8px 12px",
+                          fontSize: 13,
+                          fontFamily: mono,
+                          background: "var(--input-bg)",
+                          border: "1.5px solid var(--accent)",
+                          borderRadius: 8,
+                          color: "var(--text)",
+                          outline: "none",
+                        }}
+                      />
+                      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                        <BarButton onClick={commitRename} primary>Save</BarButton>
+                        <BarButton onClick={() => setEditingId(null)}>Cancel</BarButton>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 600,
+                            fontFamily: mono,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {row.title || "Untitled"}
+                        </div>
+                        <div style={{ fontSize: 10, color: "var(--text-dim)", fontFamily: mono }}>
+                          {net ? `${net} take-home · ` : ""}
+                          {date}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                        <BarButton onClick={() => onLoad(row)}>Load</BarButton>
+                        <BarButton onClick={() => startRename(row)}>Rename</BarButton>
+                        <button
+                          onClick={() => onDelete(row.id)}
+                          title="Delete"
+                          style={{
+                            padding: "8px 12px",
+                            fontSize: 12,
+                            fontFamily: mono,
+                            background: "transparent",
+                            color: "var(--red)",
+                            border: "1.5px solid var(--border)",
+                            borderRadius: 8,
+                            cursor: "pointer",
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               );
             })
