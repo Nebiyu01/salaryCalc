@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "./auth";
 import { api } from "./api";
 import AccountBar from "./AccountBar.jsx";
-import RetirementProjection from "./RetirementProjection.jsx";
+import RetirementProjection, { DEFAULTS as RETIREMENT_DEFAULTS } from "./RetirementProjection.jsx";
 import CarPayment from "./CarPayment.jsx";
 
 // 2025 Federal tax brackets (Single filer)
@@ -255,6 +255,16 @@ export default function SalaryCalculator() {
   const [carApr, setCarApr] = useState(6.5);
   const [carTerm, setCarTerm] = useState(60);
 
+  // Retirement assumptions also live here so they persist across tab switches.
+  const [retire, setRetire] = useState(() => ({ ...RETIREMENT_DEFAULTS }));
+  const retireTouched = useRef(false);
+  // Marking as "touched" is what stops the Comp/Expenses mirror below and locks
+  // in the user's own edits.
+  const setRetireAssumptions = (updaterOrValue) => {
+    retireTouched.current = true;
+    setRetire(updaterOrValue);
+  };
+
   const [expenses, setExpenses] = useState(() => {
     const init = {};
     for (const cat of EXPENSE_CATEGORIES) {
@@ -265,6 +275,18 @@ export default function SalaryCalculator() {
 
   const setExpense = (key, val) =>
     setExpenses((prev) => (prev[key] === val ? prev : { ...prev, [key]: val }));
+
+  // Pre-fill the retirement salary/contributions from Comp + Expenses, but only
+  // until the user edits them in the Retirement tab (then their values stick).
+  useEffect(() => {
+    if (retireTouched.current) return;
+    setRetire((r) => ({
+      ...r,
+      salary: base,
+      annual401kContribution: expenses.k401 || 0,
+      annualRothContribution: expenses.roth || 0,
+    }));
+  }, [base, expenses.k401, expenses.roth]);
 
   const stateData = STATE_TAX_DATA[stateKey];
   const stateName = stateData.name;
@@ -731,9 +753,8 @@ export default function SalaryCalculator() {
         {/* ====== RETIREMENT TAB ====== */}
         {tab === "retirement" && (
           <RetirementProjection
-            base={base}
-            k401={expenses.k401}
-            roth={expenses.roth}
+            assumptions={retire}
+            setAssumptions={setRetireAssumptions}
           />
         )}
 
