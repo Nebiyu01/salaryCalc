@@ -3,6 +3,7 @@ import { useAuth } from "./auth";
 import { api } from "./api";
 import AccountBar from "./AccountBar.jsx";
 import RetirementProjection from "./RetirementProjection.jsx";
+import CarPayment from "./CarPayment.jsx";
 
 // 2025 Federal tax brackets (Single filer)
 const FEDERAL_BRACKETS = [
@@ -255,7 +256,8 @@ export default function SalaryCalculator() {
     return init;
   });
 
-  const setExpense = (key, val) => setExpenses((prev) => ({ ...prev, [key]: val }));
+  const setExpense = (key, val) =>
+    setExpenses((prev) => (prev[key] === val ? prev : { ...prev, [key]: val }));
 
   const stateData = STATE_TAX_DATA[stateKey];
   const stateName = stateData.name;
@@ -458,7 +460,7 @@ export default function SalaryCalculator() {
 
         {/* Tabs */}
         <div style={{ display: "flex", gap: 4, marginBottom: 24, background: "var(--surface)", borderRadius: 10, padding: 4, border: "1px solid var(--border)", width: "fit-content" }}>
-          {[{ key: "comp", label: "Compensation" }, { key: "expenses", label: "Expenses" }, { key: "summary", label: "Summary" }, { key: "retirement", label: "Retirement" }].map((t) => (
+          {[{ key: "comp", label: "Compensation" }, { key: "expenses", label: "Expenses" }, { key: "summary", label: "Summary" }, { key: "retirement", label: "Retirement" }, { key: "car", label: "Car Payment" }].map((t) => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
               padding: "10px 24px", fontSize: 13, fontWeight: 600, fontFamily: mono,
               background: tab === t.key ? "var(--accent)" : "transparent",
@@ -726,6 +728,11 @@ export default function SalaryCalculator() {
             k401={expenses.k401}
             roth={expenses.roth}
           />
+        )}
+
+        {/* ====== CAR PAYMENT TAB ====== */}
+        {tab === "car" && (
+          <CarPayment onSelectPayment={(monthly) => setExpense("car_payment", monthly)} />
         )}
 
         <div style={{ marginTop: 24, fontSize: 11, color: "var(--text-dim)", fontFamily: mono, lineHeight: 1.6, textAlign: "center", opacity: 0.6 }}>

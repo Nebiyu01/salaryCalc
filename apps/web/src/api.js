@@ -52,6 +52,8 @@ export const api = {
   listCalculations: () => request("/calculations"),
   createCalculation: (payload) =>
     request("/calculations", { method: "POST", body: payload }),
+  updateCalculation: (id, payload) =>
+    request(`/calculations/${id}`, { method: "PATCH", body: payload }),
   deleteCalculation: (id) =>
     request(`/calculations/${id}`, { method: "DELETE" }),
 };
