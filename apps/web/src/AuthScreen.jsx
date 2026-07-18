@@ -34,6 +34,7 @@ export default function AuthScreen() {
   const [mode, setMode] = useState("login"); // "login" | "register"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -42,6 +43,10 @@ export default function AuthScreen() {
   const submit = async (e) => {
     e.preventDefault();
     setError("");
+    if (isRegister && password !== confirm) {
+      setError("Passwords do not match");
+      return;
+    }
     setSubmitting(true);
     try {
       const id = email.trim();
@@ -125,6 +130,18 @@ export default function AuthScreen() {
             placeholder={isRegister ? "At least 8 characters" : "••••••••"}
             autoComplete={isRegister ? "new-password" : "current-password"}
           />
+          {isRegister && (
+            <Field
+              label="Confirm Password"
+              type="password"
+              name="confirmPassword"
+              id="confirmPassword"
+              value={confirm}
+              onChange={setConfirm}
+              placeholder="Re-enter your password"
+              autoComplete="new-password"
+            />
+          )}
 
           {error && (
             <div
@@ -145,7 +162,7 @@ export default function AuthScreen() {
 
           <button
             type="submit"
-            disabled={submitting || !email || !password}
+            disabled={submitting || !email || !password || (isRegister && !confirm)}
             style={{
               width: "100%",
               padding: "12px",
@@ -183,6 +200,7 @@ export default function AuthScreen() {
             onClick={() => {
               setMode(isRegister ? "login" : "register");
               setError("");
+              setConfirm("");
             }}
             style={{
               background: "none",
