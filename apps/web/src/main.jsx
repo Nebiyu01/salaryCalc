@@ -398,7 +398,12 @@ export default function SalaryCalculator() {
   };
 
   const buildSnapshot = () => {
-    const inputs = { base, bonus, signOn, rsu, relocation, vestingYears, stateKey, expenses };
+    const inputs = {
+      base, bonus, signOn, rsu, relocation, vestingYears, stateKey, expenses,
+      // Save the whole app state so nothing is lost on reload / re-login.
+      car: { price: carPrice, down: carDown, apr: carApr, term: carTerm },
+      retirement: retire,
+    };
     const results = calc
       ? {
           netIncome: calc.netIncome,
@@ -469,6 +474,19 @@ export default function SalaryCalculator() {
     setVestingYears(i.vestingYears || 4);
     if (i.expenses && typeof i.expenses === "object") {
       setExpenses((prev) => ({ ...prev, ...i.expenses }));
+    }
+    // Restore car loan inputs (older saves won't have these — leave defaults).
+    if (i.car && typeof i.car === "object") {
+      setCarPrice(i.car.price || 0);
+      setCarDown(i.car.down || 0);
+      setCarApr(i.car.apr ?? 6.5);
+      setCarTerm(i.car.term || 60);
+    }
+    // Restore retirement assumptions; mark touched so the Comp/Expenses mirror
+    // doesn't overwrite the saved values.
+    if (i.retirement && typeof i.retirement === "object") {
+      retireTouched.current = true;
+      setRetire({ ...RETIREMENT_DEFAULTS, ...i.retirement });
     }
     setActiveCalcId(row.id); // subsequent "Save" updates this entry
     setHistoryOpen(false);
