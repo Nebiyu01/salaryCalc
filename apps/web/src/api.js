@@ -1,8 +1,10 @@
 // Thin API client for the backend. Auth uses httpOnly cookies, so every
 // request sends credentials and we never touch tokens in JS.
 
-const API_BASE =
-  import.meta.env.VITE_API_URL || "http://localhost:3000/api/v1";
+// Same-origin by default: in production the API is served under /api/v1 on the
+// same domain; in dev the Vite proxy (see vite.config.js) forwards /api to the
+// local backend. Override with VITE_API_URL only for a split deployment.
+const API_BASE = import.meta.env.VITE_API_URL || "/api/v1";
 
 export class ApiError extends Error {
   constructor(message, status, data) {

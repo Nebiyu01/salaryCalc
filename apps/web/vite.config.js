@@ -4,6 +4,13 @@ import { fileURLToPath, URL } from "node:url";
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    // In dev, forward API calls to the local backend so the frontend can use
+    // same-origin relative URLs (/api/...) exactly like production.
+    proxy: {
+      "/api": "http://localhost:3000",
+    },
+  },
   resolve: {
     alias: {
       // Consume the shared package's TypeScript source directly so Vite/esbuild
