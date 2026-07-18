@@ -34,6 +34,192 @@ function computeResults({ price, down, apr, term }) {
   return { principal, perTerm, selectedTerm, selectedMonthly: perTerm[selectedTerm].monthly };
 }
 
+function fmtK(n) {
+  if (n == null || isNaN(n)) return "$0";
+  const abs = Math.abs(n);
+  if (abs >= 1000) return "$" + Math.round(n / 1000) + "K";
+  return "$" + Math.round(n);
+}
+
+// Month-by-month amortization for the chart: remaining balance and the
+// running totals of principal and interest paid.
+function amortizationSchedule({ price, down, apr, term }) {
+  const principal = Math.max(0, (price || 0) - (down || 0));
+  const n = TERMS.includes(term) ? term : 60;
+  const r = (apr || 0) / 100 / 12;
+  const payment = monthlyPayment(principal, apr || 0, n);
+  const points = [{ month: 0, balance: principal, principalPaid: 0, interestPaid: 0, totalPaid: 0 }];
+  let bal = principal;
+  let cumP = 0;
+  let cumI = 0;
+  for (let m = 1; m <= n; m++) {
+    const interest = bal * r;
+    let princ = payment - interest;
+    if (princ > bal) princ = bal; // final payment trims to the remaining balance
+    bal = Math.max(0, bal - princ);
+    cumP += princ;
+    cumI += interest;
+    points.push({ month: m, balance: bal, principalPaid: cumP, interestPaid: cumI, totalPaid: cumP + cumI });
+  }
+  return points;
+}
+
+// The three amortization lines. Matches the Retirement chart's palette/style.
+const AMORT_SERIES = [
+  { key: "balance", label: "Remaining Balance", color: "var(--accent)", area: true },
+  { key: "principalPaid", label: "Principal Paid", color: "var(--blue)", area: false },
+  { key: "interestPaid", label: "Interest Paid", color: "var(--orange)", area: false },
+];
+
+// ---------- animated SVG path (same as the Retirement chart) ----------
+function AnimatedPath({ d, stroke, strokeWidth = 2.5, fill }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const path = ref.current;
+    if (!path || fill) return;
+    const len = path.getTotalLength();
+    path.style.transition = "none";
+    path.style.strokeDasharray = `${len}`;
+    path.style.strokeDashoffset = `${len}`;
+    path.getBoundingClientRect(); // force reflow, then animate the draw
+    path.style.transition = "stroke-dashoffset 0.9s ease-out";
+    path.style.strokeDashoffset = "0";
+    const t = setTimeout(() => {
+      path.style.transition = "none";
+      path.style.strokeDasharray = "none";
+      path.style.strokeDashoffset = "0";
+    }, 950);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <path ref={ref} d={d} fill={fill || "none"} stroke={stroke} strokeWidth={strokeWidth} strokeLinejoin="round" strokeLinecap="round" />
+  );
+}
+
+function LineSample({ color }) {
+  return (
+    <svg width="20" height="6" style={{ flexShrink: 0 }}>
+      <line x1="0" y1="3" x2="20" y2="3" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// ---------- amortization chart ----------
+function AmortizationChart({ points }) {
+  const [hover, setHover] = useState(null);
+  const wrapRef = useRef(null);
+
+  const W = 900;
+  const H = 320;
+  const padL = 56;
+  const padR = 16;
+  const padT = 16;
+  const padB = 30;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+
+  const n = points.length;
+  const allValues = AMORT_SERIES.flatMap((s) => points.map((p) => p[s.key]));
+  const yMax = Math.max(1, ...allValues) * 1.08;
+
+  const xAt = (i) => padL + (n <= 1 ? 0 : (i / (n - 1)) * plotW);
+  const yAt = (v) => padT + (1 - v / yMax) * plotH;
+
+  const buildLine = (key) =>
+    points.map((p, i) => `${i === 0 ? "M" : "L"} ${xAt(i).toFixed(1)} ${yAt(p[key]).toFixed(1)}`).join(" ");
+  const buildArea = (key) =>
+    `${buildLine(key)} L ${xAt(n - 1).toFixed(1)} ${yAt(0).toFixed(1)} L ${xAt(0).toFixed(1)} ${yAt(0).toFixed(1)} Z`;
+
+  const ticks = 4;
+  const yTicks = Array.from({ length: ticks + 1 }, (_, i) => (yMax / ticks) * i);
+  const xLabelIdx = n <= 8 ? points.map((_, i) => i) : [0, Math.floor(n / 4), Math.floor(n / 2), Math.floor((3 * n) / 4), n - 1];
+
+  const onMove = useCallback(
+    (e) => {
+      const rect = wrapRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const relX = ((e.clientX - rect.left) / rect.width) * W;
+      const i = Math.round(((relX - padL) / plotW) * (n - 1));
+      if (i >= 0 && i < n) setHover(i);
+      else setHover(null);
+    },
+    [n, plotW],
+  );
+
+  const hp = hover != null ? points[hover] : null;
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative", width: "100%" }} onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }}>
+        {yTicks.map((v, i) => (
+          <g key={i}>
+            <line x1={padL} y1={yAt(v)} x2={W - padR} y2={yAt(v)} stroke="var(--border-light)" strokeWidth="1" />
+            <text x={padL - 8} y={yAt(v) + 3} textAnchor="end" fontSize="10" fill="var(--text-dim)" fontFamily="monospace">
+              {fmtK(v)}
+            </text>
+          </g>
+        ))}
+        {xLabelIdx.map((i) => (
+          <text key={i} x={xAt(i)} y={H - 10} textAnchor="middle" fontSize="10" fill="var(--text-dim)" fontFamily="monospace">
+            {points[i].month}
+          </text>
+        ))}
+
+        {AMORT_SERIES.map((s) =>
+          s.area ? <path key={`${s.key}-area`} d={buildArea(s.key)} fill={s.color} opacity="0.08" /> : null,
+        )}
+
+        {AMORT_SERIES.map((s) => (
+          <AnimatedPath key={s.key} d={buildLine(s.key)} stroke={s.color} strokeWidth={2.5} />
+        ))}
+
+        {hover != null && (
+          <>
+            <line x1={xAt(hover)} y1={padT} x2={xAt(hover)} y2={padT + plotH} stroke="var(--text-dim)" strokeWidth="1" strokeDasharray="3 3" />
+            {AMORT_SERIES.map((s) => (
+              <circle key={s.key} cx={xAt(hover)} cy={yAt(points[hover][s.key])} r="4" fill={s.color} stroke="var(--surface)" strokeWidth="2" />
+            ))}
+          </>
+        )}
+      </svg>
+
+      {hp && (
+        <div
+          style={{
+            position: "absolute",
+            left: `calc(${(xAt(hover) / W) * 100}% + ${xAt(hover) < W / 2 ? 12 : -12}px)`,
+            transform: xAt(hover) < W / 2 ? "translateX(0)" : "translateX(-100%)",
+            top: 8,
+            background: "var(--bg)",
+            border: "1px solid var(--border)",
+            borderRadius: 10,
+            padding: "8px 12px",
+            pointerEvents: "none",
+            fontFamily: mono,
+            whiteSpace: "nowrap",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+          }}
+        >
+          <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 4 }}>Month {hp.month}</div>
+          {AMORT_SERIES.map((s) => (
+            <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: s.color, display: "inline-block" }} />
+              <span style={{ color: "var(--text-dim)" }}>{s.label}:</span>
+              <span style={{ fontWeight: 700, color: "var(--text)" }}>{fmt(s.key === "balance" ? hp.balance : hp[s.key])}</span>
+            </div>
+          ))}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginTop: 3, paddingTop: 3, borderTop: "1px solid var(--border-light)" }}>
+            <span style={{ width: 8, height: 8, display: "inline-block" }} />
+            <span style={{ color: "var(--text-dim)" }}>Total Paid:</span>
+            <span style={{ fontWeight: 700, color: "var(--text)" }}>{fmt(hp.totalPaid)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------- shared bits ----------
 function SectionLabel({ children }) {
   return (
@@ -171,8 +357,19 @@ export default function CarPayment({
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
+  // Which loan the amortization chart shows: the current inputs, or a saved
+  // scenario by id.
+  const [chartSource, setChartSource] = useState("current");
 
   const results = useMemo(() => computeResults({ price, down, apr, term }), [price, down, apr, term]);
+
+  // Inputs driving the chart, and its month-by-month schedule.
+  const chartScenario = chartSource === "current" ? null : scenarios.find((s) => s.id === chartSource);
+  const chartInputs = chartScenario?.inputs || { price, down, apr, term };
+  const schedule = useMemo(
+    () => amortizationSchedule(chartInputs),
+    [chartInputs.price, chartInputs.down, chartInputs.apr, chartInputs.term],
+  );
 
   // Sync the selected term's payment into the Expenses "Car Payment" field.
   // Use a ref for the callback and track the last value so this fires only on
@@ -274,6 +471,7 @@ export default function CarPayment({
     try {
       await api.deleteCalculation(id);
       if (editingId === id) resetEdit();
+      if (chartSource === id) setChartSource("current");
       setScenarios((s) => s.filter((r) => r.id !== id));
     } catch {
       /* noop */
@@ -360,6 +558,32 @@ export default function CarPayment({
           <span style={{ color: "var(--text)", fontWeight: 700 }}>{fmt(results.selectedMonthly)}/mo</span>{" "}
           is added to <span style={{ color: "var(--text)" }}>Expenses → Car Payment</span> and your monthly budget.
         </span>
+      </Card>
+
+      {/* amortization chart */}
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
+          <SectionLabel>Amortization Schedule</SectionLabel>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <SmallBtn onClick={() => setChartSource("current")} active={chartSource === "current"}>Current loan</SmallBtn>
+            {scenarios.map((s) => (
+              <SmallBtn key={s.id} onClick={() => setChartSource(s.id)} active={chartSource === s.id}>
+                {s.title || "Scenario"}
+              </SmallBtn>
+            ))}
+          </div>
+        </div>
+
+        <AmortizationChart points={schedule} />
+
+        <div style={{ marginTop: 12, display: "flex", gap: 16, flexWrap: "wrap" }}>
+          {AMORT_SERIES.map((s) => (
+            <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <LineSample color={s.color} />
+              <span style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: mono }}>{s.label}</span>
+            </div>
+          ))}
+        </div>
       </Card>
 
       {/* scenarios */}
