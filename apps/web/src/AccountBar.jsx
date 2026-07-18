@@ -106,7 +106,7 @@ export default function AccountBar({
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           {saveMsg && (
             <span style={{ fontSize: 11, color: "var(--accent)", fontFamily: mono }}>
               {saveMsg}

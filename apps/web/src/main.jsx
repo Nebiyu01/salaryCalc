@@ -4,6 +4,7 @@ import { api } from "./api";
 import AccountBar from "./AccountBar.jsx";
 import RetirementProjection, { DEFAULTS as RETIREMENT_DEFAULTS } from "./RetirementProjection.jsx";
 import CarPayment from "./CarPayment.jsx";
+import { useIsMobile } from "./useIsMobile";
 
 // 2025 Federal tax brackets (Single filer)
 const FEDERAL_BRACKETS = [
@@ -239,6 +240,7 @@ function Card({ children, style }) {
 }
 
 export default function SalaryCalculator() {
+  const isMobile = useIsMobile();
   const [tab, setTab] = useState("comp");
   const [stateKey, setStateKey] = useState("CA");
   const [base, setBase] = useState(0);
@@ -497,7 +499,7 @@ export default function SalaryCalculator() {
       "--red": "#f87171", "--orange": "#fb923c",
       "--blue": "#60a5fa", "--purple": "#a78bfa", "--teal": "#2dd4bf",
       minHeight: "100vh", background: "var(--bg)", color: "var(--text)",
-      fontFamily: sans, padding: "32px 20px", boxSizing: "border-box",
+      fontFamily: sans, padding: isMobile ? "18px 12px" : "32px 20px", boxSizing: "border-box",
     }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
@@ -546,7 +548,7 @@ export default function SalaryCalculator() {
         </div>
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: 4, marginBottom: 24, background: "var(--surface)", borderRadius: 10, padding: 4, border: "1px solid var(--border)", width: "fit-content" }}>
+        <div style={{ display: "flex", gap: 4, marginBottom: 24, background: "var(--surface)", borderRadius: 10, padding: 4, border: "1px solid var(--border)", width: "fit-content", maxWidth: "100%", flexWrap: "wrap" }}>
           {[{ key: "comp", label: "Compensation" }, { key: "expenses", label: "Expenses" }, { key: "summary", label: "Summary" }, { key: "retirement", label: "Retirement" }, { key: "car", label: "Car Payment" }].map((t) => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
               padding: "10px 24px", fontSize: 13, fontWeight: 600, fontFamily: mono,
@@ -559,7 +561,7 @@ export default function SalaryCalculator() {
 
         {/* ====== COMP TAB ====== */}
         {tab === "comp" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 16 : 32 }}>
             <Card style={{ padding: 24 }}>
               <SectionLabel>Compensation</SectionLabel>
               <InputField label="Base Salary" value={base} onChange={setBase} hint="Annual" />
@@ -650,7 +652,7 @@ export default function SalaryCalculator() {
 
         {/* ====== EXPENSES TAB ====== */}
         {tab === "expenses" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 16 : 32 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {EXPENSE_CATEGORIES.filter((_, i) => i % 2 === 0).map((cat) => (
                 <Card key={cat.key}>
@@ -704,7 +706,7 @@ export default function SalaryCalculator() {
         {tab === "summary" && (
           <div>
             {calc ? (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 16 : 32 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   <Card style={{ textAlign: "center", padding: 28 }}>
                     <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--text-dim)", marginBottom: 4, fontFamily: mono }}>Monthly Savings</div>

@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { projectRetirement } from "@salary-calc/shared";
 import { api } from "./api";
+import { useIsMobile } from "./useIsMobile";
 
 const mono = "'DM Mono', monospace";
 
@@ -549,6 +550,7 @@ function ComparisonChip({ label }) {
 
 // ---------- main component ----------
 export default function RetirementProjection({ assumptions, setAssumptions }) {
+  const isMobile = useIsMobile();
   // Assumptions are owned by the parent so they persist across tab switches.
   const a = assumptions;
   const set = (field, value) => setAssumptions((prev) => ({ ...prev, [field]: value }));
@@ -656,7 +658,7 @@ export default function RetirementProjection({ assumptions, setAssumptions }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* summary metrics */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 12 }}>
         <MetricCard
           label={`Projected at ${a.retirementAge}`}
           value={fmtCompact(view === "real" ? summary.finalRealBalance : summary.finalBalance)}
@@ -706,7 +708,7 @@ export default function RetirementProjection({ assumptions, setAssumptions }) {
       </Card>
 
       {/* controls + plans */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
         <Card>
           <SectionLabel>Assumptions</SectionLabel>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>

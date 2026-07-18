@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { api } from "./api";
+import { useIsMobile } from "./useIsMobile";
 
 const mono = "'DM Mono', monospace";
 const TERMS = [48, 60, 72];
@@ -155,6 +156,7 @@ export default function CarPayment({
   setTerm,
   onSelectPayment,
 }) {
+  const isMobile = useIsMobile();
   // Loan inputs are owned by the parent so they survive tab switches. We still
   // guard the first budget sync so merely opening the tab doesn't overwrite a
   // manually-entered car expense; a non-zero price counts as already touched.
@@ -281,7 +283,7 @@ export default function CarPayment({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* loan inputs */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 16 : 32 }}>
         <Card style={{ padding: 24 }}>
           <SectionLabel>Loan Details</SectionLabel>
           <NumField label="Vehicle Purchase Price" value={price} onChange={touch(setPrice)} prefix="$" />
