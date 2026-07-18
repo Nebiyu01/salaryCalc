@@ -16,3 +16,4 @@ apps/api/prisma/*.db
 # Editor
 .vscode/
 .idea/
+apps/api/public/
