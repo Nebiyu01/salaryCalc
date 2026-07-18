@@ -360,6 +360,9 @@ export default function SalaryCalculator() {
   // The saved calculation the current session is tied to. "Save" updates this
   // in place; "Save to history" always forks a new entry.
   const [activeCalcId, setActiveCalcId] = useState(null);
+  // Auto-load the most recent calculation once per session (right after login),
+  // so the user lands on their latest work without clicking Load.
+  const didAutoLoad = useRef(false);
 
   const loadHistory = async () => {
     setLoadingHistory(true);
@@ -373,6 +376,10 @@ export default function SalaryCalculator() {
             new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt),
         );
       setHistory(salary);
+      if (!didAutoLoad.current && salary.length > 0) {
+        didAutoLoad.current = true;
+        applyCalculation(salary[0]); // most recent entry
+      }
     } catch {
       // leave existing history; the panel shows an empty state
     } finally {
