@@ -9,9 +9,11 @@ RUN apt-get update -y \
   && apt-get install -y --no-install-recommends openssl python3 make g++ ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
-# Install all workspace dependencies.
+# Install all workspace dependencies. The lockfile is generated on macOS, which
+# locks a macOS-only Rollup binary; regenerating here lets npm pick the correct
+# platform-specific optional deps (Linux Rollup) so the Vite build works.
 COPY . .
-RUN npm ci
+RUN rm -f package-lock.json && npm install
 
 # Build shared -> generate Prisma client -> build web -> build api,
 # then place the web build where the API serves it from.
