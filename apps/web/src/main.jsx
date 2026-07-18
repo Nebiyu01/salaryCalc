@@ -105,6 +105,23 @@ function fmtPct(n) {
   return (n * 100).toFixed(1) + "%";
 }
 
+// Car loan math (shared source of truth for the Car Payment <-> Expenses link).
+function carMonthlyPayment(principal, apr, months) {
+  if (principal <= 0 || months <= 0) return 0;
+  const r = apr / 100 / 12;
+  if (r === 0) return principal / months;
+  return (principal * r) / (1 - Math.pow(1 + r, -months));
+}
+// Inverse: given a monthly payment, back-solve the vehicle price (so editing
+// the expense updates the loan scenario).
+function carPriceFromPayment(monthly, apr, months, down) {
+  if (monthly <= 0 || months <= 0) return 0;
+  const r = apr / 100 / 12;
+  const principal =
+    r === 0 ? monthly * months : (monthly * (1 - Math.pow(1 + r, -months))) / r;
+  return Math.round(principal + (down || 0));
+}
+
 const mono = "'DM Mono', monospace";
 const sans = "'DM Sans', system-ui, sans-serif";
 
@@ -278,17 +295,31 @@ export default function SalaryCalculator() {
   const setExpense = (key, val) =>
     setExpenses((prev) => (prev[key] === val ? prev : { ...prev, [key]: val }));
 
-  // Pre-fill the retirement salary/contributions from Comp + Expenses, but only
-  // until the user edits them in the Retirement tab (then their values stick).
+  // Pre-fill the retirement salary from Comp until the user overrides it.
+  // (401k/Roth contributions are two-way bound to Expenses directly — see below.)
   useEffect(() => {
     if (retireTouched.current) return;
-    setRetire((r) => ({
-      ...r,
-      salary: base,
-      annual401kContribution: expenses.k401 || 0,
-      annualRothContribution: expenses.roth || 0,
-    }));
-  }, [base, expenses.k401, expenses.roth]);
+    setRetire((r) => ({ ...r, salary: base }));
+  }, [base]);
+
+  // --- Two-way binding: Car Payment calculator <-> Expenses > Car Payment ---
+  // The loan inputs are the single source of truth; the expense mirrors the
+  // computed monthly, and editing the expense back-solves the vehicle price.
+  const carMonthly = carMonthlyPayment(Math.max(0, carPrice - carDown), carApr, carTerm);
+  useEffect(() => {
+    setExpense("car_payment", Math.round(carMonthly));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carMonthly]);
+  const setCarPaymentExpense = (monthly) => {
+    // Set the expense immediately (no controlled-input lag) and back-solve the
+    // loan; the sync effect above then confirms they match (guard prevents loops).
+    setExpense("car_payment", monthly);
+    setCarPrice(carPriceFromPayment(monthly, carApr, carTerm, carDown));
+  };
+  // Editing the Car Payment expense back-solves the loan; everything else is a
+  // plain expense. (401k/Roth are already the shared source read by Retirement.)
+  const onExpenseFieldChange = (key, v) =>
+    key === "car_payment" ? setCarPaymentExpense(v) : setExpense(key, v);
 
   const stateData = STATE_TAX_DATA[stateKey];
   const stateName = stateData.name;
@@ -475,12 +506,21 @@ export default function SalaryCalculator() {
     if (i.expenses && typeof i.expenses === "object") {
       setExpenses((prev) => ({ ...prev, ...i.expenses }));
     }
-    // Restore car loan inputs (older saves won't have these — leave defaults).
-    if (i.car && typeof i.car === "object") {
-      setCarPrice(i.car.price || 0);
-      setCarDown(i.car.down || 0);
-      setCarApr(i.car.apr ?? 6.5);
-      setCarTerm(i.car.term || 60);
+    // Restore car loan inputs. Older saves lack the loan block but may have a
+    // Car Payment expense — back-solve a loan from it so the two stay in sync.
+    const savedApr = i.car?.apr ?? 6.5;
+    const savedTerm = i.car?.term || 60;
+    const savedDown = i.car?.down || 0;
+    const savedCarPayment = i.expenses?.car_payment || 0;
+    setCarDown(savedDown);
+    setCarApr(savedApr);
+    setCarTerm(savedTerm);
+    if (i.car?.price) {
+      setCarPrice(i.car.price);
+    } else if (savedCarPayment > 0) {
+      setCarPrice(carPriceFromPayment(savedCarPayment, savedApr, savedTerm, savedDown));
+    } else {
+      setCarPrice(0);
     }
     // Restore retirement assumptions; mark touched so the Comp/Expenses mirror
     // doesn't overwrite the saved values.
@@ -687,7 +727,7 @@ export default function SalaryCalculator() {
                   </div>
                   {cat.items.map((item) => (
                     <InputField key={item.key} compact label={item.label} value={expenses[item.key]}
-                      onChange={(v) => setExpense(item.key, v)} hint={item.hint} />
+                      onChange={(v) => onExpenseFieldChange(item.key, v)} hint={item.hint} />
                   ))}
                 </Card>
               ))}
@@ -701,7 +741,7 @@ export default function SalaryCalculator() {
                   </div>
                   {cat.items.map((item) => (
                     <InputField key={item.key} compact label={item.label} value={expenses[item.key]}
-                      onChange={(v) => setExpense(item.key, v)} hint={item.hint} />
+                      onChange={(v) => onExpenseFieldChange(item.key, v)} hint={item.hint} />
                   ))}
                 </Card>
               ))}
@@ -840,6 +880,10 @@ export default function SalaryCalculator() {
           <RetirementProjection
             assumptions={retire}
             setAssumptions={setRetireAssumptions}
+            k401={expenses.k401}
+            roth={expenses.roth}
+            onK401Change={(v) => setExpense("k401", v)}
+            onRothChange={(v) => setExpense("roth", v)}
           />
         )}
 
@@ -854,7 +898,6 @@ export default function SalaryCalculator() {
             setApr={setCarApr}
             term={carTerm}
             setTerm={setCarTerm}
-            onSelectPayment={(monthly) => setExpense("car_payment", monthly)}
           />
         )}
 

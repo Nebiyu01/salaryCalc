@@ -340,17 +340,10 @@ export default function CarPayment({
   setApr,
   term,
   setTerm,
-  onSelectPayment,
 }) {
   const isMobile = useIsMobile();
-  // Loan inputs are owned by the parent so they survive tab switches. We still
-  // guard the first budget sync so merely opening the tab doesn't overwrite a
-  // manually-entered car expense; a non-zero price counts as already touched.
-  const touched = useRef((price || 0) > 0);
-  const touch = (setter) => (v) => {
-    touched.current = true;
-    setter(v);
-  };
+  // Loan inputs are owned by the parent, which also keeps the Expenses > Car
+  // Payment field in sync (two-way), so this component just reads/writes them.
 
   const [scenarios, setScenarios] = useState([]);
   const [name, setName] = useState("");
@@ -370,20 +363,6 @@ export default function CarPayment({
     () => amortizationSchedule(chartInputs),
     [chartInputs.price, chartInputs.down, chartInputs.apr, chartInputs.term],
   );
-
-  // Sync the selected term's payment into the Expenses "Car Payment" field.
-  // Use a ref for the callback and track the last value so this fires only on
-  // a real change (never on every parent re-render -> no update loop).
-  const onSelectRef = useRef(onSelectPayment);
-  onSelectRef.current = onSelectPayment;
-  const lastSynced = useRef(null);
-  useEffect(() => {
-    if (!touched.current) return;
-    const v = Math.round(results.selectedMonthly);
-    if (lastSynced.current === v) return;
-    lastSynced.current = v;
-    onSelectRef.current(v);
-  }, [results.selectedMonthly]);
 
   const loadScenarios = useCallback(async () => {
     try {
@@ -438,7 +417,6 @@ export default function CarPayment({
 
   const applyInputs = (row) => {
     const i = row.inputs || {};
-    touched.current = true;
     setPrice(i.price || 0);
     setDown(i.down || 0);
     setApr(i.apr || 0);
@@ -484,9 +462,9 @@ export default function CarPayment({
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 16 : 32 }}>
         <Card style={{ padding: 24 }}>
           <SectionLabel>Loan Details</SectionLabel>
-          <NumField label="Vehicle Purchase Price" value={price} onChange={touch(setPrice)} prefix="$" />
-          <NumField label="Down Payment" value={down} onChange={touch(setDown)} prefix="$" hint={`Financing ${fmt(results.principal)}`} />
-          <NumField label="Interest Rate (APR)" value={apr} onChange={touch(setApr)} suffix="%" decimal hint="Adjust to see payments update" />
+          <NumField label="Vehicle Purchase Price" value={price} onChange={setPrice} prefix="$" />
+          <NumField label="Down Payment" value={down} onChange={setDown} prefix="$" hint={`Financing ${fmt(results.principal)}`} />
+          <NumField label="Interest Rate (APR)" value={apr} onChange={setApr} suffix="%" decimal hint="Adjust to see payments update" />
           <div style={{ marginTop: 4 }}>
             <label style={{ display: "block", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-dim)", marginBottom: 6, fontFamily: mono }}>
               Loan Term (your selection)
@@ -495,7 +473,7 @@ export default function CarPayment({
               {TERMS.map((t) => (
                 <button
                   key={t}
-                  onClick={() => touch(setTerm)(t)}
+                  onClick={() => setTerm(t)}
                   style={{
                     flex: 1,
                     padding: "10px 0",

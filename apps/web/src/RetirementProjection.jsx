@@ -549,7 +549,16 @@ function ComparisonChip({ label }) {
 }
 
 // ---------- main component ----------
-export default function RetirementProjection({ assumptions, setAssumptions }) {
+export default function RetirementProjection({
+  assumptions,
+  setAssumptions,
+  // 401k/Roth contributions are two-way bound to Expenses (single source of
+  // truth), so they come in as props rather than living in the assumptions.
+  k401,
+  roth,
+  onK401Change,
+  onRothChange,
+}) {
   const isMobile = useIsMobile();
   // Assumptions are owned by the parent so they persist across tab switches.
   const a = assumptions;
@@ -573,7 +582,16 @@ export default function RetirementProjection({ assumptions, setAssumptions }) {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
 
-  const projection = useMemo(() => projectRetirement(a), [a]);
+  // Contributions come from the shared Expenses source, not the assumptions.
+  const effectiveAssumptions = {
+    ...a,
+    annual401kContribution: k401 || 0,
+    annualRothContribution: roth || 0,
+  };
+  const projection = useMemo(
+    () => projectRetirement(effectiveAssumptions),
+    [a, k401, roth],
+  );
   const comparePlan = plans.find((p) => p.id === comparePlanId);
   const compareProjection = useMemo(
     () => (comparePlan?.inputs ? projectRetirement({ ...DEFAULTS, ...comparePlan.inputs }) : null),
@@ -600,7 +618,7 @@ export default function RetirementProjection({ assumptions, setAssumptions }) {
       await api.createCalculation({
         calculatorSlug: "retirement",
         title,
-        inputs: a,
+        inputs: effectiveAssumptions, // captures the linked 401k/Roth too
         results: projection.summary,
       });
       setSaveMsg("Saved ✓");
@@ -616,6 +634,9 @@ export default function RetirementProjection({ assumptions, setAssumptions }) {
 
   const loadPlan = (row) => {
     setAssumptions({ ...DEFAULTS, ...row.inputs });
+    // Push the plan's contributions back to the shared Expenses source.
+    if (row.inputs?.annual401kContribution != null) onK401Change(row.inputs.annual401kContribution);
+    if (row.inputs?.annualRothContribution != null) onRothChange(row.inputs.annualRothContribution);
   };
   const deletePlan = async (id) => {
     try {
@@ -730,8 +751,8 @@ export default function RetirementProjection({ assumptions, setAssumptions }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <NumField label="Salary" value={a.salary} onChange={(v) => set("salary", v)} prefix="$" />
             <NumField label="Salary Growth" value={a.salaryGrowthPct} onChange={(v) => set("salaryGrowthPct", v)} suffix="%" />
-            <NumField label="401(k) / yr" value={a.annual401kContribution} onChange={(v) => set("annual401kContribution", v)} prefix="$" hint="max $23,500" />
-            <NumField label="Roth / yr" value={a.annualRothContribution} onChange={(v) => set("annualRothContribution", v)} prefix="$" hint="max $7,500" />
+            <NumField label="401(k) / yr" value={k401 || 0} onChange={onK401Change} prefix="$" hint="max $23,500 · linked to Expenses" />
+            <NumField label="Roth / yr" value={roth || 0} onChange={onRothChange} prefix="$" hint="max $7,500 · linked to Expenses" />
             <NumField label="Match Rate" value={a.employerMatchRatePct} onChange={(v) => set("employerMatchRatePct", v)} suffix="%" hint="of your contribution" />
             <NumField label="Match Limit" value={a.employerMatchLimitPct} onChange={(v) => set("employerMatchLimitPct", v)} suffix="%" hint="of salary" />
           </div>
