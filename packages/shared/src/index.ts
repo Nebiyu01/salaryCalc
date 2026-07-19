@@ -26,6 +26,18 @@ export const loginSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
+// Email verification with a 6-digit code (OTP).
+export const verifyEmailSchema = z.object({
+  email: z.string().email(),
+  code: z.string().regex(/^\d{6}$/, "Enter the 6-digit code"),
+});
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+
+export const resendCodeSchema = z.object({
+  email: z.string().email(),
+});
+export type ResendCodeInput = z.infer<typeof resendCodeSchema>;
+
 // ---------- User ----------
 
 export const userRoleSchema = z.enum(["user", "admin"]);

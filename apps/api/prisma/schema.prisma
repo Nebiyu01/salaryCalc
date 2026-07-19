@@ -24,6 +24,12 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // Email verification via 6-digit code (OTP). Null until verified.
+  emailVerifiedAt      DateTime?
+  verificationCodeHash String?
+  verificationExpires  DateTime?
+  verificationAttempts Int       @default(0)
+
   profile       UserProfile?
   calculations  Calculation[]
   refreshTokens RefreshToken[]

@@ -14,8 +14,12 @@ import { Request, Response, CookieOptions } from "express";
 import {
   loginSchema,
   registerSchema,
+  verifyEmailSchema,
+  resendCodeSchema,
   type LoginInput,
   type RegisterInput,
+  type VerifyEmailInput,
+  type ResendCodeInput,
 } from "@salary-calc/shared";
 import { AuthService, TokenPair } from "./auth.service";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
@@ -35,19 +39,37 @@ export class AuthController {
     private readonly prisma: PrismaService,
   ) {}
 
+  // Creates an unverified account and emails a 6-digit code. No session yet —
+  // the client must verify the email first.
   @Post("register")
   async register(
     @Body(new ZodValidationPipe(registerSchema)) dto: RegisterInput,
+  ) {
+    const user = await this.auth.register(dto.email, dto.password);
+    return { user, needsVerification: true };
+  }
+
+  // Confirms the 6-digit code, marks the email verified, and logs the user in.
+  @Post("verify-email")
+  @HttpCode(200)
+  async verifyEmail(
+    @Body(new ZodValidationPipe(verifyEmailSchema)) dto: VerifyEmailInput,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const user = await this.auth.register(dto.email, dto.password);
-    const full = await this.prisma.user.findUniqueOrThrow({
-      where: { id: user.id },
-    });
-    const tokens = await this.auth.issueTokens(full, req.headers["user-agent"]);
+    const user = await this.auth.verifyEmailCode(dto.email, dto.code);
+    const tokens = await this.auth.issueTokens(user, req.headers["user-agent"]);
     this.setAuthCookies(res, tokens);
-    return { user };
+    return { user: this.auth.toPublicUser(user) };
+  }
+
+  @Post("resend-code")
+  @HttpCode(200)
+  async resendCode(
+    @Body(new ZodValidationPipe(resendCodeSchema)) dto: ResendCodeInput,
+  ) {
+    await this.auth.resendVerificationCode(dto.email);
+    return { ok: true };
   }
 
   @Post("login")
