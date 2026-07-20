@@ -39,6 +39,7 @@ export default function AccountBar({
   email,
   onSaveSession,
   onSaveToHistory,
+  onReset,
   activeTitle,
   saving,
   saveMsg,
@@ -60,6 +61,15 @@ export default function AccountBar({
   const commitRename = () => {
     if (editingId) onRename(editingId, draft.trim() || "Untitled");
     setEditingId(null);
+  };
+  const handleReset = () => {
+    if (
+      window.confirm(
+        "Clear all fields? This empties every input so you can start over. Your saved history is not affected.",
+      )
+    ) {
+      onReset();
+    }
   };
   return (
     <div style={{ marginBottom: 24 }}>
@@ -118,6 +128,7 @@ export default function AccountBar({
           <BarButton onClick={onSaveToHistory} disabled={saving}>
             Save to history
           </BarButton>
+          <BarButton onClick={handleReset}>Clear all</BarButton>
           <BarButton onClick={onToggleHistory}>
             History{history?.length ? ` (${history.length})` : ""}
           </BarButton>
