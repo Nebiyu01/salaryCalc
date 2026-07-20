@@ -30,6 +30,49 @@ function BarButton({ onClick, disabled, primary, children }) {
   );
 }
 
+// Three-line "hamburger" glyph for the overflow menu trigger.
+function MenuIcon() {
+  return (
+    <span style={{ display: "flex", flexDirection: "column", gap: 3, width: 16 }}>
+      {[0, 1, 2].map((i) => (
+        <span key={i} style={{ height: 2, borderRadius: 2, background: "currentColor" }} />
+      ))}
+    </span>
+  );
+}
+
+// A single action inside the overflow dropdown: full-width, left-aligned row.
+function MenuItem({ onClick, disabled, danger, children }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        width: "100%",
+        padding: "9px 12px",
+        fontSize: 12,
+        fontWeight: 600,
+        fontFamily: mono,
+        textAlign: "left",
+        background: "transparent",
+        color: danger ? "var(--red)" : "var(--text)",
+        border: "none",
+        borderRadius: 8,
+        cursor: disabled ? "default" : "pointer",
+        opacity: disabled ? 0.5 : 1,
+      }}
+      onMouseEnter={(e) => !disabled && (e.currentTarget.style.background = "var(--input-bg)")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+    >
+      {children}
+    </button>
+  );
+}
+
 function fmtMoney(n) {
   if (typeof n !== "number" || isNaN(n)) return null;
   return "$" + Math.round(n).toLocaleString("en-US");
@@ -54,6 +97,8 @@ export default function AccountBar({
 }) {
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = () => setMenuOpen(false);
   const startRename = (row) => {
     setEditingId(row.id);
     setDraft(row.title || "");
@@ -125,14 +170,92 @@ export default function AccountBar({
           <BarButton onClick={onSaveSession} disabled={saving} primary>
             {saving ? "Saving…" : "Save"}
           </BarButton>
-          <BarButton onClick={onSaveToHistory} disabled={saving}>
-            Save to history
-          </BarButton>
-          <BarButton onClick={handleReset}>Clear all</BarButton>
-          <BarButton onClick={onToggleHistory}>
-            History{history?.length ? ` (${history.length})` : ""}
-          </BarButton>
-          <BarButton onClick={onLogout}>Log out</BarButton>
+
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setMenuOpen((o) => !o)}
+              aria-label="More actions"
+              aria-expanded={menuOpen}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "8px 12px",
+                background: menuOpen ? "var(--input-bg)" : "var(--input-bg)",
+                color: "var(--text)",
+                border: "1.5px solid var(--border)",
+                borderRadius: 8,
+                cursor: "pointer",
+              }}
+            >
+              <MenuIcon />
+            </button>
+
+            {menuOpen && (
+              <>
+                {/* click-away layer */}
+                <div
+                  onClick={closeMenu}
+                  style={{ position: "fixed", inset: 0, zIndex: 20 }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 6px)",
+                    right: 0,
+                    zIndex: 21,
+                    minWidth: 180,
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 10,
+                    padding: 6,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 2,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                  }}
+                >
+                  <MenuItem
+                    onClick={() => {
+                      onSaveToHistory();
+                      closeMenu();
+                    }}
+                    disabled={saving}
+                  >
+                    Save to history
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      closeMenu();
+                      handleReset();
+                    }}
+                  >
+                    Clear all
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      onToggleHistory();
+                      closeMenu();
+                    }}
+                  >
+                    History
+                    {history?.length ? (
+                      <span style={{ color: "var(--text-dim)" }}>{history.length}</span>
+                    ) : null}
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      onLogout();
+                      closeMenu();
+                    }}
+                    danger
+                  >
+                    Log out
+                  </MenuItem>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
