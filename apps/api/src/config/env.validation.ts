@@ -19,6 +19,13 @@ const envSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+
+  // AWS SES for verification emails. All optional — if unset, the mailer logs
+  // codes to the console (dev mode) instead of sending real email.
+  AWS_REGION: z.string().optional(),
+  AWS_ACCESS_KEY_ID: z.string().optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  SES_FROM_EMAIL: z.string().email().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

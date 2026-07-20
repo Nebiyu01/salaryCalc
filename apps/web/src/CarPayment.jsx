@@ -30,8 +30,9 @@ function computeResults({ price, down, apr, term }) {
       totalInterest: monthly * t - principal,
     };
   }
-  const selectedTerm = TERMS.includes(term) ? term : 60;
-  return { principal, perTerm, selectedTerm, selectedMonthly: perTerm[selectedTerm].monthly };
+  // The selection can be one of the presets or any custom term the user types.
+  const selectedTerm = term > 0 ? term : 60;
+  return { principal, perTerm, selectedTerm, selectedMonthly: monthlyPayment(principal, apr || 0, selectedTerm) };
 }
 
 function fmtK(n) {
@@ -45,7 +46,7 @@ function fmtK(n) {
 // running totals of principal and interest paid.
 function amortizationSchedule({ price, down, apr, term }) {
   const principal = Math.max(0, (price || 0) - (down || 0));
-  const n = TERMS.includes(term) ? term : 60;
+  const n = term > 0 ? term : 60;
   const r = (apr || 0) / 100 / 12;
   const payment = monthlyPayment(principal, apr || 0, n);
   const points = [{ month: 0, balance: principal, principalPaid: 0, interestPaid: 0, totalPaid: 0 }];
@@ -309,6 +310,62 @@ function NumField({ label, value, onChange, prefix, suffix, decimal, hint }) {
   );
 }
 
+// Manual loan-term entry. Keeps a local string so an in-progress/cleared value
+// isn't reformatted away while typing; commits an integer month count upward.
+function TermInput({ term, setTerm }) {
+  const [raw, setRaw] = useState(() => (term > 0 ? String(term) : ""));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setRaw(term > 0 ? String(term) : "");
+  }, [term, focused]);
+
+  const handleChange = (e) => {
+    const digits = e.target.value.replace(/[^0-9]/g, "").slice(0, 3);
+    setRaw(digits);
+    setTerm(digits === "" ? 0 : parseInt(digits, 10));
+  };
+
+  const isCustom = term > 0 && !TERMS.includes(term);
+
+  return (
+    <div style={{ position: "relative", marginTop: 8 }}>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={raw}
+        onChange={handleChange}
+        placeholder="Custom term"
+        style={{
+          width: "100%",
+          padding: "9px 52px 9px 12px",
+          fontSize: 14,
+          fontWeight: 700,
+          fontFamily: mono,
+          background: "var(--input-bg)",
+          border: isCustom ? "1.5px solid var(--accent)" : "1.5px solid var(--border)",
+          borderRadius: 8,
+          color: "var(--text)",
+          outline: "none",
+          boxSizing: "border-box",
+        }}
+        onFocus={(e) => {
+          setFocused(true);
+          e.target.style.borderColor = "var(--accent)";
+        }}
+        onBlur={(e) => {
+          setFocused(false);
+          setRaw(term > 0 ? String(term) : "");
+          e.target.style.borderColor = isCustom ? "var(--accent)" : "var(--border)";
+        }}
+      />
+      <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)", fontSize: 13, fontFamily: mono, pointerEvents: "none" }}>
+        months
+      </span>
+    </div>
+  );
+}
+
 function SmallBtn({ onClick, children, active, danger }) {
   return (
     <button
@@ -420,7 +477,7 @@ export default function CarPayment({
     setPrice(i.price || 0);
     setDown(i.down || 0);
     setApr(i.apr || 0);
-    setTerm(TERMS.includes(i.term) ? i.term : 60);
+    setTerm(i.term > 0 ? i.term : 60);
   };
 
   const loadScenario = (row) => {
@@ -491,6 +548,10 @@ export default function CarPayment({
                 </button>
               ))}
             </div>
+            <TermInput term={term} setTerm={setTerm} />
+            <span style={{ fontSize: 10, color: "var(--text-dim)", fontFamily: mono }}>
+              Pick a preset or type any number of months
+            </span>
           </div>
         </Card>
 
@@ -525,6 +586,36 @@ export default function CarPayment({
               </Card>
             );
           })}
+
+          {/* Custom term: mirrors the preset cards but for whatever month count
+              the user typed. Only shows when the selection isn't a preset. */}
+          {term > 0 && !TERMS.includes(term) && (
+            <Card
+              style={{
+                padding: 18,
+                border: "1.5px solid var(--accent)",
+                background: "linear-gradient(135deg, var(--surface) 0%, rgba(74,222,128,0.06) 100%)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--accent)", fontFamily: mono }}>
+                    {term} months · custom
+                  </div>
+                  <div style={{ fontSize: 30, fontWeight: 800, fontFamily: mono, color: "var(--accent)", lineHeight: 1.2 }}>
+                    {fmt(results.selectedMonthly)}<span style={{ fontSize: 13, color: "var(--text-dim)", fontWeight: 500 }}>/mo</span>
+                  </div>
+                </div>
+                <div style={{ textAlign: "right", fontFamily: mono }}>
+                  <div style={{ fontSize: 11, color: "var(--text-dim)" }}>Total interest</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--orange)" }}>
+                    {fmt(results.selectedMonthly * term - results.principal)}
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>{fmt(results.selectedMonthly * term)} total</div>
+                </div>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
 

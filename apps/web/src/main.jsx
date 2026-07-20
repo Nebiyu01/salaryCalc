@@ -21,12 +21,14 @@ const FEDERAL_BRACKETS = [
 // sdiRate: state disability/paid-leave employee contribution rate
 // sdiCap: wage cap for SDI (default Infinity)
 // sdiLabel: label for SDI line item
+// supplementalRate: flat state withholding on supplemental wages (relocation,
+//   bonuses). When absent, the marginal state rate is used as an estimate.
 const STATE_TAX_DATA = {
   AL: { name: "Alabama",        brackets: [{min:0,max:500,rate:.02},{min:500,max:3000,rate:.04},{min:3000,max:Infinity,rate:.05}], stdDeduction: 2500,  sdiRate: 0 },
   AK: { name: "Alaska",         brackets: [], stdDeduction: 0,     sdiRate: 0 },
   AZ: { name: "Arizona",        brackets: [{min:0,max:Infinity,rate:.025}], stdDeduction: 14600, sdiRate: 0 },
   AR: { name: "Arkansas",       brackets: [{min:0,max:4300,rate:.02},{min:4300,max:8500,rate:.04},{min:8500,max:Infinity,rate:.047}], stdDeduction: 2200, sdiRate: 0 },
-  CA: { name: "California",     brackets: [{min:0,max:11079,rate:.01},{min:11079,max:26264,rate:.02},{min:26264,max:41449,rate:.04},{min:41449,max:57509,rate:.06},{min:57509,max:72689,rate:.08},{min:72689,max:372984,rate:.093},{min:372984,max:447573,rate:.103},{min:447573,max:698274,rate:.113},{min:698274,max:1000000,rate:.123},{min:1000000,max:Infinity,rate:.133}], stdDeduction: 5706,  sdiRate: 0.012, sdiCap: Infinity, sdiLabel: "CA SDI" },
+  CA: { name: "California",     brackets: [{min:0,max:11079,rate:.01},{min:11079,max:26264,rate:.02},{min:26264,max:41449,rate:.04},{min:41449,max:57509,rate:.06},{min:57509,max:72689,rate:.08},{min:72689,max:372984,rate:.093},{min:372984,max:447573,rate:.103},{min:447573,max:698274,rate:.113},{min:698274,max:1000000,rate:.123},{min:1000000,max:Infinity,rate:.133}], stdDeduction: 5706,  sdiRate: 0.012, sdiCap: Infinity, sdiLabel: "CA SDI", supplementalRate: 0.066 },
   CO: { name: "Colorado",       brackets: [{min:0,max:Infinity,rate:.044}], stdDeduction: 14600, sdiRate: 0 },
   CT: { name: "Connecticut",    brackets: [{min:0,max:10000,rate:.03},{min:10000,max:50000,rate:.05},{min:50000,max:100000,rate:.055},{min:100000,max:200000,rate:.06},{min:200000,max:250000,rate:.065},{min:250000,max:500000,rate:.069},{min:500000,max:Infinity,rate:.0699}], stdDeduction: 15000, sdiRate: 0 },
   DC: { name: "Washington DC",  brackets: [{min:0,max:10000,rate:.04},{min:10000,max:40000,rate:.06},{min:40000,max:60000,rate:.065},{min:60000,max:350000,rate:.085},{min:350000,max:1000000,rate:.0925},{min:1000000,max:Infinity,rate:.1075}], stdDeduction: 12950, sdiRate: 0 },
@@ -84,6 +86,12 @@ const FICA_MEDICARE_SURTAX_THRESHOLD = 200000;
 const MAX_401K = 23500;
 const MAX_ROTH = 7500;
 
+// Supplemental wages (relocation, one-time bonuses) are withheld at a flat
+// federal rate rather than at marginal brackets: 22% up to $1M, 37% above.
+const FED_SUPPLEMENTAL_RATE = 0.22;
+const FED_SUPPLEMENTAL_RATE_HIGH = 0.37;
+const SUPPLEMENTAL_HIGH_THRESHOLD = 1000000;
+
 function calcBracketTax(income, brackets) {
   let tax = 0;
   for (const b of brackets) {
@@ -92,6 +100,16 @@ function calcBracketTax(income, brackets) {
     tax += taxable * b.rate;
   }
   return tax;
+}
+
+// The marginal rate at a given income — used to estimate state supplemental
+// withholding for states without a documented flat supplemental rate.
+function marginalRate(income, brackets) {
+  let rate = 0;
+  for (const b of brackets) {
+    if (income > b.min) rate = b.rate;
+  }
+  return rate;
 }
 
 function fmt(n) {
@@ -331,16 +349,32 @@ export default function SalaryCalculator() {
     const sd = STATE_TAX_DATA[stateKey];
     const annualRsu = rsu / vestingYears;
     const preTax401k = expenses.k401 || 0;
-    const totalGross = base + bonus + signOn + annualRsu + relocation;
+    // Relocation is a one-time supplemental payment taxed at flat withholding
+    // rates, not blended into the marginally-taxed recurring compensation.
+    const recurringGross = base + bonus + signOn + annualRsu;
+    const totalGross = recurringGross + relocation;
     if (totalGross === 0) return null;
 
-    const adjustedGross = Math.max(0, totalGross - preTax401k);
+    // --- Recurring comp: marginal income tax (401k is pre-tax against it) ---
+    const adjustedGross = Math.max(0, recurringGross - preTax401k);
     const fedTaxableIncome = Math.max(0, adjustedGross - FEDERAL_STD_DEDUCTION);
-    const fedIncomeTax = calcBracketTax(fedTaxableIncome, FEDERAL_BRACKETS);
+    const fedIncomeTaxRecurring = calcBracketTax(fedTaxableIncome, FEDERAL_BRACKETS);
 
     const stateTaxableIncome = Math.max(0, adjustedGross - sd.stdDeduction);
-    const stateIncomeTax = calcBracketTax(stateTaxableIncome, sd.brackets);
+    const stateIncomeTaxRecurring = calcBracketTax(stateTaxableIncome, sd.brackets);
 
+    // --- Relocation: flat supplemental withholding on income tax ---
+    const fedSupplementalTax =
+      relocation * (relocation > SUPPLEMENTAL_HIGH_THRESHOLD ? FED_SUPPLEMENTAL_RATE_HIGH : FED_SUPPLEMENTAL_RATE);
+    const stateSupplementalRate = sd.supplementalRate ?? marginalRate(stateTaxableIncome, sd.brackets);
+    const stateSupplementalTax = relocation * stateSupplementalRate;
+
+    // Income tax buckets combine recurring (marginal) + relocation (flat) so
+    // the breakdown and "Where It Goes" bar still sum correctly.
+    const fedIncomeTax = fedIncomeTaxRecurring + fedSupplementalTax;
+    const stateIncomeTax = stateIncomeTaxRecurring + stateSupplementalTax;
+
+    // --- FICA/SDI apply at the same flat rates regardless of wage type ---
     const ssWages = Math.min(totalGross, FICA_SS_CAP);
     const ssTax = ssWages * FICA_SS_RATE;
     const medicareTax = totalGross * FICA_MEDICARE_RATE;
@@ -351,6 +385,18 @@ export default function SalaryCalculator() {
     const sdiWages = Math.min(totalGross, sd.sdiCap ?? Infinity);
     const sdiTax = sdiWages * sd.sdiRate;
 
+    // Relocation's own FICA/SDI share (it stacks on top of recurring wages for
+    // the SS and SDI caps), so we can show its stand-alone net take-home.
+    const relocSs = (Math.min(totalGross, FICA_SS_CAP) - Math.min(recurringGross, FICA_SS_CAP)) * FICA_SS_RATE;
+    const relocMedicare = relocation * FICA_MEDICARE_RATE;
+    const relocSurtax = medicareSurtax - (recurringGross > FICA_MEDICARE_SURTAX_THRESHOLD
+      ? (recurringGross - FICA_MEDICARE_SURTAX_THRESHOLD) * FICA_MEDICARE_SURTAX_RATE : 0);
+    const relocSdiCap = sd.sdiCap ?? Infinity;
+    const relocSdi = (Math.min(totalGross, relocSdiCap) - Math.min(recurringGross, relocSdiCap)) * sd.sdiRate;
+    const relocationTax = fedSupplementalTax + stateSupplementalTax + relocSs + relocMedicare + relocSurtax + relocSdi;
+    const relocationNet = relocation - relocationTax;
+    const relocationRate = relocation > 0 ? relocationTax / relocation : 0;
+
     const totalTax = fedIncomeTax + stateIncomeTax + totalFica + sdiTax;
     const netIncome = totalGross - totalTax - preTax401k;
     const effectiveRate = totalGross > 0 ? totalTax / totalGross : 0;
@@ -360,6 +406,8 @@ export default function SalaryCalculator() {
       totalGross, annualRsu, fedIncomeTax, stateIncomeTax, ssTax,
       medicareTax: medicareTax + medicareSurtax, sdiTax, totalFica,
       totalTax, netIncome, effectiveRate, monthlyNet, preTax401k,
+      relocationGross: relocation, relocationTax, relocationNet, relocationRate,
+      fedSupplementalTax, stateSupplementalTax, stateSupplementalRate,
     };
   }, [base, bonus, signOn, rsu, relocation, vestingYears, expenses.k401, stateKey]);
 
@@ -647,7 +695,14 @@ export default function SalaryCalculator() {
                   ))}
                 </div>
               </div>
-              <InputField label="Relocation" value={relocation} onChange={setRelocation} hint="One-time, taxable" />
+              <InputField
+                label="Relocation"
+                value={relocation}
+                onChange={setRelocation}
+                hint={relocation > 0 && calc
+                  ? `One-time · net ${fmt(calc.relocationNet)} after ${fmtPct(calc.relocationRate)} supplemental tax`
+                  : "One-time, taxed at supplemental rate"}
+              />
             </Card>
             <div>
               {calc ? (
@@ -692,6 +747,9 @@ export default function SalaryCalculator() {
                     <TaxRow label="Sign-On Bonus" amount={signOn} sub />
                     <TaxRow label={`RSUs (${fmt(rsu)} / ${vestingYears}yr)`} amount={calc.annualRsu} sub />
                     <TaxRow label="Relocation" amount={relocation} sub />
+                    {relocation > 0 && (
+                      <TaxRow label={`↳ Relocation net (after ${fmtPct(calc.relocationRate)} supplemental)`} amount={calc.relocationNet} sub />
+                    )}
                     <div style={{ height: 14 }} />
                     {calc.preTax401k > 0 && <TaxRow label="401(k) Pre-Tax" amount={calc.preTax401k} pct={calc.preTax401k / calc.totalGross} />}
                     <TaxRow label="Federal Income Tax" amount={calc.fedIncomeTax} pct={calc.fedIncomeTax / calc.totalGross} />

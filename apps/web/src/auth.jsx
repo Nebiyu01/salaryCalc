@@ -23,8 +23,12 @@ export function AuthProvider({ children }) {
     setUser(user);
   };
 
-  const register = async (email, password) => {
-    const { user } = await api.register(email, password);
+  // Registration no longer creates a session — it emails a code. The caller
+  // then verifies with verifyEmail, which is what actually logs the user in.
+  const register = (email, password) => api.register(email, password);
+  const resendCode = (email) => api.resendCode(email);
+  const verifyEmail = async (email, code) => {
+    const { user } = await api.verifyEmail(email, code);
     setUser(user);
   };
 
@@ -34,7 +38,9 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, register, verifyEmail, resendCode, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );

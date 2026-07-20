@@ -4,6 +4,7 @@ import { ServeStaticModule } from "@nestjs/serve-static";
 import { join } from "path";
 import { validateEnv } from "./config/env.validation";
 import { PrismaModule } from "./prisma/prisma.module";
+import { MailModule } from "./mail/mail.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { CalculationsModule } from "./modules/calculations/calculations.module";
 import { HealthController } from "./health.controller";
@@ -22,6 +23,7 @@ import { HealthController } from "./health.controller";
       exclude: ["/api/(.*)"],
     }),
     PrismaModule,
+    MailModule,
     AuthModule,
     CalculationsModule,
   ],

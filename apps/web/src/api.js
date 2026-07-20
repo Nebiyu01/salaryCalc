@@ -46,6 +46,10 @@ async function request(path, { method = "GET", body, _retry } = {}) {
 export const api = {
   register: (email, password) =>
     request("/auth/register", { method: "POST", body: { email, password } }),
+  verifyEmail: (email, code) =>
+    request("/auth/verify-email", { method: "POST", body: { email, code } }),
+  resendCode: (email) =>
+    request("/auth/resend-code", { method: "POST", body: { email } }),
   login: (email, password) =>
     request("/auth/login", { method: "POST", body: { email, password } }),
   logout: () => request("/auth/logout", { method: "POST" }),

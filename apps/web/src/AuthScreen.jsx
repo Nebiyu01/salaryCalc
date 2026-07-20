@@ -30,12 +30,16 @@ async function saveBrowserCredential(id, password) {
 }
 
 export default function AuthScreen() {
-  const { login, register } = useAuth();
+  const { login, register, verifyEmail, resendCode } = useAuth();
   const [mode, setMode] = useState("login"); // "login" | "register"
+  const [step, setStep] = useState("auth"); // "auth" | "verify"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [pendingEmail, setPendingEmail] = useState("");
+  const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const isRegister = mode === "register";
@@ -50,15 +54,63 @@ export default function AuthScreen() {
     setSubmitting(true);
     try {
       const id = email.trim();
-      if (isRegister) await register(id, password);
-      else await login(id, password);
-      // Offer to save the credential before the AuthProvider unmounts us.
-      await saveBrowserCredential(id, password);
+      if (isRegister) {
+        await register(id, password);
+        // Account created; a code was emailed. Move to the verification step.
+        setPendingEmail(id);
+        setCode("");
+        setInfo(`We sent a 6-digit code to ${id}.`);
+        setStep("verify");
+      } else {
+        await login(id, password);
+        await saveBrowserCredential(id, password);
+      }
     } catch (err) {
-      setError(err.message || "Something went wrong");
+      // Unverified login: backend re-sends a code and asks us to verify.
+      if (err.status === 403 && err.data?.reason === "email_not_verified") {
+        setPendingEmail(err.data.email || email.trim());
+        setCode("");
+        setInfo("Please verify your email — we sent you a new code.");
+        setStep("verify");
+      } else {
+        setError(err.message || "Something went wrong");
+      }
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const submitCode = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSubmitting(true);
+    try {
+      await verifyEmail(pendingEmail, code.trim());
+      await saveBrowserCredential(pendingEmail, password);
+      // On success the AuthProvider sets the user and this screen unmounts.
+    } catch (err) {
+      setError(err.message || "Invalid or expired code");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const resend = async () => {
+    setError("");
+    setInfo("");
+    try {
+      await resendCode(pendingEmail);
+      setInfo("A new code is on its way.");
+    } catch {
+      setInfo("A new code is on its way.");
+    }
+  };
+
+  const backToAuth = () => {
+    setStep("auth");
+    setCode("");
+    setError("");
+    setInfo("");
   };
 
   return (
@@ -93,12 +145,30 @@ export default function AuthScreen() {
               fontFamily: mono,
             }}
           >
-            {isRegister
-              ? "Create an account to save your calculations"
-              : "Sign in to access your saved calculations"}
+            {step === "verify"
+              ? "Enter the code we emailed you"
+              : isRegister
+                ? "Create an account to save your calculations"
+                : "Sign in to access your saved calculations"}
           </p>
         </div>
 
+        {step === "verify" && (
+          <VerifyForm
+            email={pendingEmail}
+            code={code}
+            setCode={setCode}
+            onSubmit={submitCode}
+            onResend={resend}
+            onBack={backToAuth}
+            submitting={submitting}
+            error={error}
+            info={info}
+          />
+        )}
+
+        {step === "auth" && (
+          <>
         <form
           onSubmit={submit}
           style={{
@@ -216,8 +286,94 @@ export default function AuthScreen() {
             {isRegister ? "Sign in" : "Create one"}
           </button>
         </div>
+          </>
+        )}
       </div>
     </div>
+  );
+}
+
+// The 6-digit code entry step shown after registering (or when logging in with
+// an unverified account).
+function VerifyForm({ email, code, setCode, onSubmit, onResend, onBack, submitting, error, info }) {
+  return (
+    <form
+      onSubmit={onSubmit}
+      style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 24 }}
+    >
+      {info && (
+        <div style={{ fontSize: 12, color: C.textDim, fontFamily: mono, marginBottom: 14, textAlign: "center" }}>
+          {info}
+        </div>
+      )}
+      <label
+        style={{ display: "block", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: C.textDim, marginBottom: 6, fontFamily: mono }}
+      >
+        6-Digit Code
+      </label>
+      <input
+        value={code}
+        onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        autoFocus
+        placeholder="000000"
+        style={{
+          width: "100%",
+          padding: "12px 14px",
+          fontSize: 22,
+          fontWeight: 700,
+          letterSpacing: "10px",
+          textAlign: "center",
+          fontFamily: mono,
+          background: C.inputBg,
+          border: `1.5px solid ${C.border}`,
+          borderRadius: 10,
+          color: C.text,
+          outline: "none",
+          boxSizing: "border-box",
+        }}
+        onFocus={(e) => (e.target.style.borderColor = C.accent)}
+        onBlur={(e) => (e.target.style.borderColor = C.border)}
+      />
+
+      {error && (
+        <div style={{ background: "rgba(248,113,113,0.1)", border: `1px solid ${C.red}`, borderRadius: 8, padding: "8px 12px", fontSize: 12, color: C.red, fontFamily: mono, margin: "14px 0" }}>
+          {error}
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={submitting || code.length !== 6}
+        style={{
+          width: "100%",
+          marginTop: 14,
+          padding: "12px",
+          fontSize: 14,
+          fontWeight: 700,
+          fontFamily: mono,
+          background: C.accent,
+          color: C.bg,
+          border: "none",
+          borderRadius: 10,
+          cursor: submitting ? "default" : "pointer",
+          opacity: submitting || code.length !== 6 ? 0.5 : 1,
+          transition: "opacity 0.15s",
+        }}
+      >
+        {submitting ? "Verifying…" : "Verify email"}
+      </button>
+
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 16, fontSize: 12, fontFamily: mono }}>
+        <button type="button" onClick={onBack} style={{ background: "none", border: "none", color: C.textDim, cursor: "pointer", fontFamily: mono, fontSize: 12, padding: 0 }}>
+          ← Back
+        </button>
+        <button type="button" onClick={onResend} style={{ background: "none", border: "none", color: C.accent, cursor: "pointer", fontFamily: mono, fontSize: 12, fontWeight: 600, padding: 0 }}>
+          Resend code
+        </button>
+      </div>
+    </form>
   );
 }
 
