@@ -600,6 +600,34 @@ export default function SalaryCalculator() {
     }
   };
 
+  // Blank out every input so the user can start over on an empty form, without
+  // touching saved history. Selections (state, tab) and sensible assumption
+  // defaults (APR, vesting, retirement) return to their initial values; all
+  // money fields go to 0. Detaches from any active saved entry so re-entering
+  // numbers starts a fresh calculation rather than overwriting the old one.
+  const resetInputs = () => {
+    setBase(0);
+    setBonus(0);
+    setSignOn(0);
+    setRsu(0);
+    setRelocation(0);
+    setVestingYears(4);
+    setCarPrice(0);
+    setCarDown(0);
+    setCarApr(6.5);
+    setCarTerm(60);
+    retireTouched.current = false;
+    setRetire({ ...RETIREMENT_DEFAULTS });
+    setExpenses(() => {
+      const blank = {};
+      for (const cat of EXPENSE_CATEGORIES) {
+        for (const item of cat.items) blank[item.key] = 0;
+      }
+      return blank;
+    });
+    setActiveCalcId(null);
+  };
+
   const expenseColors = ["#4ade80", "#60a5fa", "#fb923c", "#f87171", "#a78bfa", "#2dd4bf"];
   const sortedStates = Object.entries(STATE_TAX_DATA).sort((a, b) => a[1].name.localeCompare(b[1].name));
 
@@ -621,6 +649,7 @@ export default function SalaryCalculator() {
           email={user?.email}
           onSaveSession={saveSession}
           onSaveToHistory={saveToHistory}
+          onReset={resetInputs}
           activeTitle={history.find((h) => h.id === activeCalcId)?.title || null}
           saving={saving}
           saveMsg={saveMsg}
